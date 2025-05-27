@@ -15,6 +15,8 @@ import {
   PIPELINE_STAGES,
   BUSINESS_TYPES
 } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
 
 export interface IStorage {
   // Business operations
@@ -56,177 +58,25 @@ export interface IStorage {
   }>;
 }
 
-export class MemStorage implements IStorage {
-  private businesses: Map<number, Business> = new Map();
-  private campaigns: Map<number, Campaign> = new Map();
-  private templates: Map<number, Template> = new Map();
-  private activities: Map<number, Activity> = new Map();
-  private currentBusinessId = 1;
-  private currentCampaignId = 1;
-  private currentTemplateId = 1;
-  private currentActivityId = 1;
-
-  constructor() {
-    this.initializeData();
-  }
-
-  private initializeData() {
-    // Initialize with some templates
-    const initialTemplates: Template[] = [
-      {
-        id: this.currentTemplateId++,
-        name: "Auto Repair Template",
-        businessType: "auto_repair",
-        description: "Professional mechanic layout",
-        usageCount: 12,
-        previewUrl: "https://example.com/preview/auto",
-        features: ["Service booking", "Photo gallery", "Contact forms"]
-      },
-      {
-        id: this.currentTemplateId++,
-        name: "Landscaping Template", 
-        businessType: "landscaping",
-        description: "Photo-focused design",
-        usageCount: 8,
-        previewUrl: "https://example.com/preview/landscape",
-        features: ["Project gallery", "Service areas", "Quote requests"]
-      },
-      {
-        id: this.currentTemplateId++,
-        name: "General Contractor",
-        businessType: "general_contractor", 
-        description: "Service-focused layout",
-        usageCount: 15,
-        previewUrl: "https://example.com/preview/contractor",
-        features: ["Project portfolio", "Testimonials", "Service catalog"]
-      }
-    ];
-
-    initialTemplates.forEach(template => {
-      this.templates.set(template.id, template);
-    });
-
-    // Initialize with some sample campaigns
-    const initialCampaigns: Campaign[] = [
-      {
-        id: this.currentCampaignId++,
-        name: "Brunswick Mechanics",
-        businessType: "auto_repair",
-        status: "active",
-        totalContacts: 23,
-        sentCount: 18,
-        responseCount: 5,
-        message: "Hi {name}, I noticed {businessName} doesn't have a website. I'm local and can get one built for just $400 with free setup. Want the details?",
-        createdAt: new Date()
-      }
-    ];
-
-    initialCampaigns.forEach(campaign => {
-      this.campaigns.set(campaign.id, campaign);
-    });
-
-    // Initialize with some sample businesses to show revenue calculations
-    const initialBusinesses: Business[] = [
-      {
-        id: this.currentBusinessId++,
-        name: "Mike's Auto Repair",
-        phone: "(207) 555-0123",
-        address: "123 Main St",
-        city: "Brunswick",
-        state: "ME",
-        businessType: "auto_repair",
-        stage: "delivered",
-        website: "https://mikesautorepair.com",
-        notes: "Very responsive client",
-        lastContactDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
-        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-      },
-      {
-        id: this.currentBusinessId++,
-        name: "Bath Plumbing Co",
-        phone: "(207) 555-0156",
-        address: "456 Oak Ave",
-        city: "Bath",
-        state: "ME",
-        businessType: "plumbing",
-        stage: "sold",
-        website: null,
-        notes: "Paid $1,200 upfront",
-        lastContactDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
-        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
-      },
-      {
-        id: this.currentBusinessId++,
-        name: "Coastal Electric",
-        phone: "(207) 555-0189",
-        address: "789 Pine Rd",
-        city: "Wiscasset",
-        state: "ME",
-        businessType: "electrical",
-        stage: "interested",
-        website: null,
-        notes: "Call scheduled for tomorrow",
-        lastContactDate: new Date(),
-        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
-      },
-      {
-        id: this.currentBusinessId++,
-        name: "Green Thumb Landscaping",
-        phone: "(207) 555-0234",
-        address: "321 Elm St",
-        city: "Boothbay",
-        state: "ME",
-        businessType: "landscaping",
-        stage: "contacted",
-        website: null,
-        notes: "SMS sent this morning",
-        lastContactDate: new Date(),
-        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
-      },
-      {
-        id: this.currentBusinessId++,
-        name: "Superior Roofing",
-        phone: "(207) 555-0345",
-        address: "654 Maple Ave",
-        city: "Damariscotta",
-        state: "ME",
-        businessType: "roofing",
-        stage: "delivered",
-        website: "https://superiorroof.com",
-        notes: "Premium package client",
-        lastContactDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
-        createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
-      }
-    ];
-
-    initialBusinesses.forEach(business => {
-      this.businesses.set(business.id, business);
-    });
-  }
-
+export class DatabaseStorage implements IStorage {
   async getBusinesses(): Promise<Business[]> {
-    return Array.from(this.businesses.values());
+    return await db.select().from(businesses);
   }
 
   async getBusinessesByStage(stage: PipelineStage): Promise<Business[]> {
-    return Array.from(this.businesses.values()).filter(b => b.stage === stage);
+    return await db.select().from(businesses).where(eq(businesses.stage, stage));
   }
 
   async getBusinessById(id: number): Promise<Business | undefined> {
-    return this.businesses.get(id);
+    const [business] = await db.select().from(businesses).where(eq(businesses.id, id));
+    return business || undefined;
   }
 
   async createBusiness(insertBusiness: InsertBusiness): Promise<Business> {
-    const business: Business = {
-      ...insertBusiness,
-      id: this.currentBusinessId++,
-      createdAt: new Date(),
-      stage: insertBusiness.stage || "scraped",
-      website: insertBusiness.website || null,
-      notes: insertBusiness.notes || null,
-      lastContactDate: insertBusiness.lastContactDate || null,
-    };
-    this.businesses.set(business.id, business);
+    const [business] = await db
+      .insert(businesses)
+      .values(insertBusiness)
+      .returning();
     
     // Create activity
     await this.createActivity({
@@ -239,13 +89,16 @@ export class MemStorage implements IStorage {
   }
 
   async updateBusiness(id: number, updates: Partial<Business>): Promise<Business> {
-    const existing = this.businesses.get(id);
+    const [existing] = await db.select().from(businesses).where(eq(businesses.id, id));
     if (!existing) {
       throw new Error("Business not found");
     }
 
-    const updated = { ...existing, ...updates };
-    this.businesses.set(id, updated);
+    const [updated] = await db
+      .update(businesses)
+      .set(updates)
+      .where(eq(businesses.id, id))
+      .returning();
 
     // Create activity for stage changes
     if (updates.stage && updates.stage !== existing.stage) {
@@ -260,74 +113,61 @@ export class MemStorage implements IStorage {
   }
 
   async deleteBusiness(id: number): Promise<void> {
-    this.businesses.delete(id);
+    await db.delete(businesses).where(eq(businesses.id, id));
   }
 
   async getCampaigns(): Promise<Campaign[]> {
-    return Array.from(this.campaigns.values());
+    return await db.select().from(campaigns);
   }
 
   async getCampaignById(id: number): Promise<Campaign | undefined> {
-    return this.campaigns.get(id);
+    const [campaign] = await db.select().from(campaigns).where(eq(campaigns.id, id));
+    return campaign || undefined;
   }
 
   async createCampaign(insertCampaign: InsertCampaign): Promise<Campaign> {
-    const campaign: Campaign = {
-      ...insertCampaign,
-      id: this.currentCampaignId++,
-      createdAt: new Date(),
-      status: insertCampaign.status || "active",
-      totalContacts: insertCampaign.totalContacts || 0,
-      sentCount: insertCampaign.sentCount || 0,
-      responseCount: insertCampaign.responseCount || 0,
-    };
-    this.campaigns.set(campaign.id, campaign);
+    const [campaign] = await db
+      .insert(campaigns)
+      .values(insertCampaign)
+      .returning();
     return campaign;
   }
 
   async updateCampaign(id: number, updates: Partial<Campaign>): Promise<Campaign> {
-    const existing = this.campaigns.get(id);
-    if (!existing) {
-      throw new Error("Campaign not found");
-    }
-
-    const updated = { ...existing, ...updates };
-    this.campaigns.set(id, updated);
+    const [updated] = await db
+      .update(campaigns)
+      .set(updates)
+      .where(eq(campaigns.id, id))
+      .returning();
     return updated;
   }
 
   async getTemplates(): Promise<Template[]> {
-    return Array.from(this.templates.values());
+    return await db.select().from(templates);
   }
 
   async getTemplatesByBusinessType(businessType: string): Promise<Template[]> {
-    return Array.from(this.templates.values()).filter(t => t.businessType === businessType);
+    return await db.select().from(templates).where(eq(templates.businessType, businessType));
   }
 
   async getActivities(): Promise<Activity[]> {
-    return Array.from(this.activities.values()).sort((a, b) => 
-      new Date(b.createdAt!).getTime() - new Date(a.createdAt!).getTime()
-    );
+    return await db.select().from(activities).orderBy(activities.createdAt);
   }
 
   async getRecentActivities(limit = 10): Promise<Activity[]> {
-    const activities = await this.getActivities();
-    return activities.slice(0, limit);
+    return await db.select().from(activities).orderBy(activities.createdAt).limit(limit);
   }
 
   async createActivity(insertActivity: InsertActivity): Promise<Activity> {
-    const activity: Activity = {
-      ...insertActivity,
-      id: this.currentActivityId++,
-      createdAt: new Date(),
-      businessId: insertActivity.businessId || null,
-    };
-    this.activities.set(activity.id, activity);
+    const [activity] = await db
+      .insert(activities)
+      .values(insertActivity)
+      .returning();
     return activity;
   }
 
   async getStageStats(): Promise<Record<PipelineStage, number>> {
-    const businesses = await this.getBusinesses();
+    const allBusinesses = await this.getBusinesses();
     const stats: Record<PipelineStage, number> = {
       scraped: 0,
       contacted: 0,
@@ -336,7 +176,7 @@ export class MemStorage implements IStorage {
       delivered: 0
     };
 
-    businesses.forEach(business => {
+    allBusinesses.forEach(business => {
       if (PIPELINE_STAGES.includes(business.stage as PipelineStage)) {
         stats[business.stage as PipelineStage]++;
       }
@@ -351,9 +191,9 @@ export class MemStorage implements IStorage {
     avgDealSize: number;
     monthlyRecurring: number;
   }> {
-    const businesses = await this.getBusinesses();
-    const soldBusinesses = businesses.filter(b => b.stage === 'sold' || b.stage === 'delivered');
-    const deliveredBusinesses = businesses.filter(b => b.stage === 'delivered');
+    const allBusinesses = await this.getBusinesses();
+    const soldBusinesses = allBusinesses.filter(b => b.stage === 'sold' || b.stage === 'delivered');
+    const deliveredBusinesses = allBusinesses.filter(b => b.stage === 'delivered');
     
     const totalDeals = soldBusinesses.length;
     
@@ -384,9 +224,9 @@ export class MemStorage implements IStorage {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const activities = await this.getActivities();
-    const todayActivities = activities.filter(a => 
-      new Date(a.createdAt!).getTime() >= today.getTime()
+    const allActivities = await this.getActivities();
+    const todayActivities = allActivities.filter(a => 
+      a.createdAt && new Date(a.createdAt).getTime() >= today.getTime()
     );
 
     return {
@@ -398,4 +238,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
