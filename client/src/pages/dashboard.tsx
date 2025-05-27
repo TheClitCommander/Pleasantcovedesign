@@ -251,7 +251,7 @@ export default function Dashboard() {
           <p className="text-gray-600">Manage your automated website sales pipeline</p>
           
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-6">
-            <Card>
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setLocation('/leads')}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
@@ -268,7 +268,7 @@ export default function Dashboard() {
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className="cursor-pointer hover:shadow-lg transition-shadow" onClick={() => setLocation('/campaigns')}>
               <CardContent className="p-6">
                 <div className="flex items-center justify-between">
                   <div>
