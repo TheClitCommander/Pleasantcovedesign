@@ -16,6 +16,7 @@ import { useLocation } from "wouter";
 export default function Dashboard() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [, setLocation] = useLocation();
+  const { notifications, unreadCount, markAsRead } = useNotifications();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/stats"],
@@ -134,37 +135,61 @@ export default function Dashboard() {
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="relative">
                   <Bell className="w-4 h-4" />
-                  <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">3</span>
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">
+                      {unreadCount}
+                    </span>
+                  )}
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-80">
                 <div className="px-3 py-2 border-b">
                   <h4 className="font-semibold">Notifications</h4>
                 </div>
-                <DropdownMenuItem className="flex items-start space-x-3 p-3">
-                  <MessageSquare className="w-4 h-4 mt-1 text-blue-500" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">New lead response</p>
-                    <p className="text-xs text-gray-500">Coastal Electric replied to your SMS</p>
-                    <p className="text-xs text-gray-400">5 minutes ago</p>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="flex items-start space-x-3 p-3">
-                  <Calendar className="w-4 h-4 mt-1 text-green-500" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Meeting scheduled</p>
-                    <p className="text-xs text-gray-500">Bath Plumbing Co booked a demo call</p>
-                    <p className="text-xs text-gray-400">1 hour ago</p>
-                  </div>
-                </DropdownMenuItem>
-                <DropdownMenuItem className="flex items-start space-x-3 p-3">
-                  <Check className="w-4 h-4 mt-1 text-purple-500" />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium">Website delivered</p>
-                    <p className="text-xs text-gray-500">Portland Auto Repair site is live</p>
-                    <p className="text-xs text-gray-400">3 hours ago</p>
-                  </div>
-                </DropdownMenuItem>
+                {notifications.slice(0, 3).map((notification) => {
+                  const getIcon = (type: string) => {
+                    switch (type) {
+                      case 'message': return MessageSquare;
+                      case 'meeting': return Calendar;
+                      case 'delivery': return Check;
+                      case 'call': return Phone;
+                      case 'email': return Mail;
+                      case 'payment': return Check;
+                      default: return Bell;
+                    }
+                  };
+                  
+                  const getIconColor = (type: string) => {
+                    switch (type) {
+                      case 'message': return 'text-blue-500';
+                      case 'meeting': return 'text-green-500';
+                      case 'delivery': return 'text-purple-500';
+                      case 'call': return 'text-orange-500';
+                      case 'email': return 'text-indigo-500';
+                      case 'payment': return 'text-green-600';
+                      default: return 'text-gray-500';
+                    }
+                  };
+
+                  const Icon = getIcon(notification.type);
+                  return (
+                    <DropdownMenuItem 
+                      key={notification.id} 
+                      className={`flex items-start space-x-3 p-3 ${!notification.read ? 'bg-blue-50' : ''}`}
+                      onClick={() => markAsRead(notification.id)}
+                    >
+                      <Icon className={`w-4 h-4 mt-1 ${getIconColor(notification.type)}`} />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium">{notification.title}</p>
+                        <p className="text-xs text-gray-500">
+                          {notification.description.slice(0, 60)}
+                          {notification.description.length > 60 ? '...' : ''}
+                        </p>
+                        <p className="text-xs text-gray-400">{notification.time}</p>
+                      </div>
+                    </DropdownMenuItem>
+                  );
+                })}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem asChild>
                   <a href="/notifications" className="text-center text-sm text-blue-600 hover:text-blue-800">
