@@ -250,15 +250,40 @@ export default function Campaigns() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline">
                     <Filter className="w-4 h-4 mr-2" />
-                    Filter by Status
+                    {filterStatus === "all" ? "Filter by Status" : `Status: ${filterStatus.charAt(0).toUpperCase() + filterStatus.slice(1)}`}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setFilterStatus("all")}>All Statuses</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStatus("active")}>Active</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStatus("paused")}>Paused</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStatus("completed")}>Completed</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStatus("draft")}>Draft</DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStatus("all")}
+                    className={filterStatus === "all" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStatus === "all" && "✓ "}All Statuses
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStatus("active")}
+                    className={filterStatus === "active" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStatus === "active" && "✓ "}Active
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStatus("paused")}
+                    className={filterStatus === "paused" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStatus === "paused" && "✓ "}Paused
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStatus("completed")}
+                    className={filterStatus === "completed" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStatus === "completed" && "✓ "}Completed
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStatus("draft")}
+                    className={filterStatus === "draft" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStatus === "draft" && "✓ "}Draft
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
               <Button variant="outline">

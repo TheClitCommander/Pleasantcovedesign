@@ -249,19 +249,63 @@ export default function Leads() {
                 <DropdownMenuTrigger asChild>
                   <Button variant="outline">
                     <Filter className="w-4 h-4 mr-2" />
-                    Filter by Stage
+                    {filterStage === "all" ? "Filter by Stage" : `Stage: ${filterStage.charAt(0).toUpperCase() + filterStage.slice(1)}`}
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>
-                  <DropdownMenuItem onClick={() => setFilterStage("all")}>All Stages</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStage("scraped")}>Scraped</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStage("contacted")}>Contacted</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStage("interested")}>Interested</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStage("sold")}>Sold</DropdownMenuItem>
-                  <DropdownMenuItem onClick={() => setFilterStage("delivered")}>Delivered</DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStage("all")}
+                    className={filterStage === "all" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStage === "all" && "✓ "}All Stages
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStage("scraped")}
+                    className={filterStage === "scraped" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStage === "scraped" && "✓ "}Scraped
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStage("contacted")}
+                    className={filterStage === "contacted" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStage === "contacted" && "✓ "}Contacted
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStage("interested")}
+                    className={filterStage === "interested" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStage === "interested" && "✓ "}Interested
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStage("sold")}
+                    className={filterStage === "sold" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStage === "sold" && "✓ "}Sold
+                  </DropdownMenuItem>
+                  <DropdownMenuItem 
+                    onClick={() => setFilterStage("delivered")}
+                    className={filterStage === "delivered" ? "bg-blue-50 text-blue-700" : ""}
+                  >
+                    {filterStage === "delivered" && "✓ "}Delivered
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <Button>
+              <Button onClick={() => {
+                const csvContent = "data:text/csv;charset=utf-8," + 
+                  "Business Name,Email,Phone,Type,Location,Stage,Last Contact\n" +
+                  filteredBusinesses.map(b => 
+                    `"${b.name}","${b.email}","${b.phone}","${b.businessType}","${b.city}, ${b.state}","${b.stage}","${b.lastContact ? new Date(b.lastContact).toLocaleDateString() : 'Never'}"`
+                  ).join("\n");
+                
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "leads_export.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+              }}>
                 <Download className="w-4 h-4 mr-2" />
                 Export
               </Button>
@@ -315,13 +359,28 @@ export default function Leads() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center space-x-2">
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => window.location.href = `/inbox?business=${business.id}`}
+                              title="View details"
+                            >
                               <Eye className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => window.location.href = `tel:${business.phone}`}
+                              title="Call business"
+                            >
                               <Phone className="w-4 h-4" />
                             </Button>
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => window.location.href = `mailto:${business.email || 'info@' + business.name.toLowerCase().replace(/\s+/g, '') + '.com'}`}
+                              title="Send email"
+                            >
                               <Mail className="w-4 h-4" />
                             </Button>
                             <DropdownMenu>
@@ -331,16 +390,38 @@ export default function Leads() {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  const editData = {
+                                    name: business.name,
+                                    phone: business.phone,
+                                    businessType: business.businessType,
+                                    stage: business.stage,
+                                    notes: business.notes
+                                  };
+                                  alert(`Edit functionality would open with:\n${JSON.stringify(editData, null, 2)}`);
+                                }}>
                                   <Edit className="w-4 h-4 mr-2" />
                                   Edit
                                 </DropdownMenuItem>
-                                <DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => {
+                                  if (business.website) {
+                                    window.open(business.website, '_blank');
+                                  } else {
+                                    window.open('/customer-example', '_blank');
+                                  }
+                                }}>
                                   <ExternalLink className="w-4 h-4 mr-2" />
                                   View Website
                                 </DropdownMenuItem>
                                 <DropdownMenuSeparator />
-                                <DropdownMenuItem className="text-red-600">
+                                <DropdownMenuItem 
+                                  className="text-red-600"
+                                  onClick={() => {
+                                    if (confirm(`Are you sure you want to delete ${business.name}? This action cannot be undone.`)) {
+                                      alert(`Delete functionality would remove ${business.name} from the database.`);
+                                    }
+                                  }}
+                                >
                                   <Trash2 className="w-4 h-4 mr-2" />
                                   Delete
                                 </DropdownMenuItem>
