@@ -3,7 +3,8 @@ import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Bell, Globe, Upload, Plus, Eye, Calendar, Check, ExternalLink, ArrowRight } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { Bell, Globe, Upload, Plus, Eye, Calendar, Check, ExternalLink, ArrowRight, Settings, User, LogOut, MessageSquare } from "lucide-react";
 import PipelineBoard from "@/components/pipeline-board";
 import ImportModal from "@/components/import-modal";
 import CampaignCard from "@/components/campaign-card";
@@ -127,10 +128,80 @@ export default function Dashboard() {
             </div>
           </div>
           <div className="flex items-center space-x-4">
-            <Button variant="ghost" size="sm">
-              <Bell className="w-4 h-4" />
-            </Button>
-            <div className="w-8 h-8 bg-gray-300 rounded-full"></div>
+            {/* Notifications Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="relative">
+                  <Bell className="w-4 h-4" />
+                  <span className="absolute -top-1 -right-1 h-3 w-3 bg-red-500 rounded-full text-xs flex items-center justify-center text-white">3</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-80">
+                <div className="px-3 py-2 border-b">
+                  <h4 className="font-semibold">Notifications</h4>
+                </div>
+                <DropdownMenuItem className="flex items-start space-x-3 p-3">
+                  <MessageSquare className="w-4 h-4 mt-1 text-blue-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">New lead response</p>
+                    <p className="text-xs text-gray-500">Coastal Electric replied to your SMS</p>
+                    <p className="text-xs text-gray-400">5 minutes ago</p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex items-start space-x-3 p-3">
+                  <Calendar className="w-4 h-4 mt-1 text-green-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Meeting scheduled</p>
+                    <p className="text-xs text-gray-500">Bath Plumbing Co booked a demo call</p>
+                    <p className="text-xs text-gray-400">1 hour ago</p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuItem className="flex items-start space-x-3 p-3">
+                  <Check className="w-4 h-4 mt-1 text-purple-500" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">Website delivered</p>
+                    <p className="text-xs text-gray-500">Portland Auto Repair site is live</p>
+                    <p className="text-xs text-gray-400">3 hours ago</p>
+                  </div>
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-center text-sm text-blue-600 hover:text-blue-800">
+                  View all notifications
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            {/* Account Settings Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="w-8 h-8 rounded-full bg-primary text-white hover:bg-primary/90">
+                  <User className="w-4 h-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <div className="px-3 py-2 border-b">
+                  <p className="font-medium">John Smith</p>
+                  <p className="text-sm text-gray-500">john@localbizpro.com</p>
+                </div>
+                <DropdownMenuItem>
+                  <User className="w-4 h-4 mr-2" />
+                  Profile Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Settings className="w-4 h-4 mr-2" />
+                  Account Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Bell className="w-4 h-4 mr-2" />
+                  Notification Preferences
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="text-red-600">
+                  <LogOut className="w-4 h-4 mr-2" />
+                  Sign Out
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
       </nav>
