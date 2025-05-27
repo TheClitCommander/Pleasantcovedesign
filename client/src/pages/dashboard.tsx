@@ -107,8 +107,8 @@ export default function Dashboard() {
               <span className="font-bold text-xl text-gray-900">LocalBiz Pro</span>
             </div>
             <div className="hidden md:flex space-x-6 ml-8">
-              <a href="#" className="text-primary border-b-2 border-primary pb-2 font-medium">Dashboard</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Leads</a>
+              <a href="/" className="text-primary border-b-2 border-primary pb-2 font-medium">Dashboard</a>
+              <a href="/prospects" className="text-gray-600 hover:text-gray-900">Prospects</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Campaigns</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Templates</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Analytics</a>
