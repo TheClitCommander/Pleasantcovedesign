@@ -60,7 +60,66 @@ export interface IStorage {
 
 export class DatabaseStorage implements IStorage {
   async getBusinesses(): Promise<Business[]> {
-    return await db.select().from(businesses);
+    const results = await db.select().from(businesses);
+    
+    // If no businesses exist, create some sample data
+    if (results.length === 0) {
+      const sampleBusinesses = [
+        {
+          name: "Coastal Electric",
+          email: "info@coastalelectric.me",
+          phone: "(207) 555-0123",
+          address: "123 Main St",
+          city: "Portland",
+          state: "ME",
+          businessType: "electrical",
+          stage: "contacted" as const,
+          lastContact: new Date().toISOString(),
+          notes: "Interested in modern website design"
+        },
+        {
+          name: "Bath Plumbing Co",
+          email: "contact@bathplumbing.com",
+          phone: "(207) 555-0198",
+          address: "456 Water St",
+          city: "Bath",
+          state: "ME",
+          businessType: "plumbing",
+          stage: "interested" as const,
+          lastContact: new Date(Date.now() - 86400000).toISOString(),
+          notes: "Wants to schedule demo call"
+        },
+        {
+          name: "Brunswick Tire Shop",
+          email: "service@brunswicktire.com",
+          phone: "(207) 555-0176",
+          address: "789 Auto Ave",
+          city: "Brunswick",
+          state: "ME",
+          businessType: "automotive",
+          stage: "scraped" as const,
+          lastContact: null,
+          notes: "Recently scraped from local directory"
+        },
+        {
+          name: "Yarmouth Dental",
+          email: "hello@yarmouthdental.com", 
+          phone: "(207) 555-0145",
+          address: "321 Health Blvd",
+          city: "Yarmouth",
+          state: "ME",
+          businessType: "healthcare",
+          stage: "delivered" as const,
+          lastContact: new Date(Date.now() - 172800000).toISOString(),
+          notes: "Website delivered and live"
+        }
+      ];
+      
+      await db.insert(businesses).values(sampleBusinesses);
+      return await db.select().from(businesses);
+    }
+    
+    return results;
   }
 
   async getBusinessesByStage(stage: PipelineStage): Promise<Business[]> {

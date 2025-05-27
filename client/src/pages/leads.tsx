@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { api } from "@/lib/api";
+import type { Business } from "@shared/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,13 +17,13 @@ export default function Leads() {
 
   const { data: businesses = [] } = useQuery({
     queryKey: ["/api/businesses"],
-  });
+  }) as { data: Business[] };
 
   const { data: stats = {} } = useQuery({
     queryKey: ["/api/stats"],
   });
 
-  const filteredBusinesses = businesses.filter(business => {
+  const filteredBusinesses = businesses.filter((business: Business) => {
     const matchesSearch = business.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          business.businessType.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStage = filterStage === "all" || business.stage === filterStage;
