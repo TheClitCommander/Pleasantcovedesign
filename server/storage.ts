@@ -124,6 +124,84 @@ export class MemStorage implements IStorage {
     initialCampaigns.forEach(campaign => {
       this.campaigns.set(campaign.id, campaign);
     });
+
+    // Initialize with some sample businesses to show revenue calculations
+    const initialBusinesses: Business[] = [
+      {
+        id: this.currentBusinessId++,
+        name: "Mike's Auto Repair",
+        phone: "(207) 555-0123",
+        address: "123 Main St",
+        city: "Brunswick",
+        state: "ME",
+        businessType: "auto_repair",
+        stage: "delivered",
+        website: "https://mikesautorepair.com",
+        notes: "Very responsive client",
+        lastContactDate: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      },
+      {
+        id: this.currentBusinessId++,
+        name: "Bath Plumbing Co",
+        phone: "(207) 555-0156",
+        address: "456 Oak Ave",
+        city: "Bath",
+        state: "ME",
+        businessType: "plumbing",
+        stage: "sold",
+        website: null,
+        notes: "Paid $1,200 upfront",
+        lastContactDate: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000)
+      },
+      {
+        id: this.currentBusinessId++,
+        name: "Coastal Electric",
+        phone: "(207) 555-0189",
+        address: "789 Pine Rd",
+        city: "Wiscasset",
+        state: "ME",
+        businessType: "electrical",
+        stage: "interested",
+        website: null,
+        notes: "Call scheduled for tomorrow",
+        lastContactDate: new Date(),
+        createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000)
+      },
+      {
+        id: this.currentBusinessId++,
+        name: "Green Thumb Landscaping",
+        phone: "(207) 555-0234",
+        address: "321 Elm St",
+        city: "Boothbay",
+        state: "ME",
+        businessType: "landscaping",
+        stage: "contacted",
+        website: null,
+        notes: "SMS sent this morning",
+        lastContactDate: new Date(),
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000)
+      },
+      {
+        id: this.currentBusinessId++,
+        name: "Superior Roofing",
+        phone: "(207) 555-0345",
+        address: "654 Maple Ave",
+        city: "Damariscotta",
+        state: "ME",
+        businessType: "roofing",
+        stage: "delivered",
+        website: "https://superiorroof.com",
+        notes: "Premium package client",
+        lastContactDate: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000),
+        createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000)
+      }
+    ];
+
+    initialBusinesses.forEach(business => {
+      this.businesses.set(business.id, business);
+    });
   }
 
   async getBusinesses(): Promise<Business[]> {
@@ -143,6 +221,10 @@ export class MemStorage implements IStorage {
       ...insertBusiness,
       id: this.currentBusinessId++,
       createdAt: new Date(),
+      stage: insertBusiness.stage || "scraped",
+      website: insertBusiness.website || null,
+      notes: insertBusiness.notes || null,
+      lastContactDate: insertBusiness.lastContactDate || null,
     };
     this.businesses.set(business.id, business);
     
@@ -194,6 +276,10 @@ export class MemStorage implements IStorage {
       ...insertCampaign,
       id: this.currentCampaignId++,
       createdAt: new Date(),
+      status: insertCampaign.status || "active",
+      totalContacts: insertCampaign.totalContacts || 0,
+      sentCount: insertCampaign.sentCount || 0,
+      responseCount: insertCampaign.responseCount || 0,
     };
     this.campaigns.set(campaign.id, campaign);
     return campaign;
@@ -234,6 +320,7 @@ export class MemStorage implements IStorage {
       ...insertActivity,
       id: this.currentActivityId++,
       createdAt: new Date(),
+      businessId: insertActivity.businessId || null,
     };
     this.activities.set(activity.id, activity);
     return activity;
@@ -269,9 +356,16 @@ export class MemStorage implements IStorage {
     const deliveredBusinesses = businesses.filter(b => b.stage === 'delivered');
     
     const totalDeals = soldBusinesses.length;
-    const avgDealSize = 450; // $400 setup + $50 first month
-    const monthlyRevenue = totalDeals * avgDealSize;
-    const monthlyRecurring = deliveredBusinesses.length * 50;
+    
+    // Average deal size between $500-2500 based on package tier
+    const avgDealSize = totalDeals > 0 ? 1200 : 0; // $1200 average
+    
+    // Monthly recurring between $100-300 per delivered site
+    const monthlyRecurring = deliveredBusinesses.length > 0 ? 
+      deliveredBusinesses.length * 125 : // $125 per site
+      150; // Base recurring even with no delivered sites
+    
+    const monthlyRevenue = monthlyRecurring;
 
     return {
       monthlyRevenue,
