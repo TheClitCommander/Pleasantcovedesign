@@ -116,12 +116,12 @@ export default function Inbox() {
       <nav className="bg-white border-b border-gray-200 px-4 py-3">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
+            <a href="/" className="flex items-center space-x-2 hover:opacity-80 transition-opacity">
               <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
                 <Globe className="text-white w-4 h-4" />
               </div>
               <span className="font-bold text-xl text-gray-900">LocalBiz Pro</span>
-            </div>
+            </a>
             <div className="hidden md:flex space-x-6 ml-8">
               <a href="/" className="text-gray-600 hover:text-gray-900">Dashboard</a>
               <a href="/prospects" className="text-gray-600 hover:text-gray-900">Prospects</a>
