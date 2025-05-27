@@ -6,6 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/dashboard";
 import Prospects from "@/pages/prospects";
 import Inbox from "@/pages/inbox";
+import Profile from "@/pages/profile";
+import Account from "@/pages/account";
+import Notifications from "@/pages/notifications";
 import CustomerSite from "@/pages/customer-site";
 import NotFound from "@/pages/not-found";
 
@@ -15,6 +18,9 @@ function Router() {
       <Route path="/" component={Dashboard} />
       <Route path="/prospects" component={Prospects} />
       <Route path="/inbox" component={Inbox} />
+      <Route path="/profile" component={Profile} />
+      <Route path="/account" component={Account} />
+      <Route path="/notifications" component={Notifications} />
       <Route path="/customer-example" component={CustomerSite} />
       <Route component={NotFound} />
     </Switch>

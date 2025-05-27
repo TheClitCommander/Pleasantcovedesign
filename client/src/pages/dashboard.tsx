@@ -4,7 +4,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Bell, Globe, Upload, Plus, Eye, Calendar, Check, ExternalLink, ArrowRight, Settings, User, LogOut, MessageSquare } from "lucide-react";
+import { Bell, Globe, Upload, Plus, Eye, Calendar, Check, ExternalLink, ArrowRight, Settings, User, LogOut, MessageSquare, Phone, Mail } from "lucide-react";
+import { useNotifications } from "@/hooks/use-notifications";
 import PipelineBoard from "@/components/pipeline-board";
 import ImportModal from "@/components/import-modal";
 import CampaignCard from "@/components/campaign-card";
@@ -165,8 +166,10 @@ export default function Dashboard() {
                   </div>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-center text-sm text-blue-600 hover:text-blue-800">
-                  View all notifications
+                <DropdownMenuItem asChild>
+                  <a href="/notifications" className="text-center text-sm text-blue-600 hover:text-blue-800">
+                    View all notifications
+                  </a>
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
@@ -183,20 +186,30 @@ export default function Dashboard() {
                   <p className="font-medium">John Smith</p>
                   <p className="text-sm text-gray-500">john@localbizpro.com</p>
                 </div>
-                <DropdownMenuItem>
-                  <User className="w-4 h-4 mr-2" />
-                  Profile Settings
+                <DropdownMenuItem asChild>
+                  <a href="/profile">
+                    <User className="w-4 h-4 mr-2" />
+                    Profile Settings
+                  </a>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Settings className="w-4 h-4 mr-2" />
-                  Account Settings
+                <DropdownMenuItem asChild>
+                  <a href="/account">
+                    <Settings className="w-4 h-4 mr-2" />
+                    Account Settings
+                  </a>
                 </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Bell className="w-4 h-4 mr-2" />
-                  Notification Preferences
+                <DropdownMenuItem asChild>
+                  <a href="/notifications">
+                    <Bell className="w-4 h-4 mr-2" />
+                    Notification Preferences
+                  </a>
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem className="text-red-600">
+                <DropdownMenuItem className="text-red-600" onClick={() => {
+                  if (confirm("Are you sure you want to sign out?")) {
+                    window.location.href = "/";
+                  }
+                }}>
                   <LogOut className="w-4 h-4 mr-2" />
                   Sign Out
                 </DropdownMenuItem>
