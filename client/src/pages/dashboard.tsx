@@ -9,9 +9,11 @@ import ImportModal from "@/components/import-modal";
 import CampaignCard from "@/components/campaign-card";
 import BusinessTypeCard from "@/components/business-type-card";
 import { useState } from "react";
+import { useLocation } from "wouter";
 
 export default function Dashboard() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [, setLocation] = useLocation();
 
   const { data: stats, isLoading: statsLoading } = useQuery({
     queryKey: ["/api/stats"],
@@ -38,6 +40,7 @@ export default function Dashboard() {
       successRate: "89%",
       prospects: "42 prospects found",
       imageUrl: "https://images.unsplash.com/photo-1486262715619-67b85e0b08d3?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+      businessType: "auto_repair",
     },
     {
       name: "Plumbing Services", 
@@ -45,6 +48,7 @@ export default function Dashboard() {
       successRate: "76%",
       prospects: "31 prospects found",
       imageUrl: "https://images.unsplash.com/photo-1581244277943-fe4a9c777189?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+      businessType: "plumbing",
     },
     {
       name: "Electrical Contractors",
@@ -52,6 +56,7 @@ export default function Dashboard() {
       successRate: "82%",
       prospects: "28 prospects found",
       imageUrl: "https://images.unsplash.com/photo-1621905251189-08b45d6a269e?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+      businessType: "electrical",
     },
     {
       name: "Landscaping Services",
@@ -59,6 +64,7 @@ export default function Dashboard() {
       successRate: "71%", 
       prospects: "36 prospects found",
       imageUrl: "https://images.unsplash.com/photo-1416879595882-3373a0480b5b?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+      businessType: "landscaping",
     },
     {
       name: "Roofing Contractors",
@@ -66,6 +72,7 @@ export default function Dashboard() {
       successRate: "78%",
       prospects: "19 prospects found", 
       imageUrl: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+      businessType: "roofing",
     },
     {
       name: "Cleaning Services",
@@ -73,8 +80,13 @@ export default function Dashboard() {
       successRate: "85%",
       prospects: "23 prospects found",
       imageUrl: "https://images.unsplash.com/photo-1527515637462-cff94eecc1ac?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+      businessType: "cleaning",
     },
   ];
+
+  const handleBusinessTypeClick = (businessType: string) => {
+    setLocation(`/prospects?type=${businessType}`);
+  };
 
   if (statsLoading) {
     return (
@@ -309,7 +321,9 @@ export default function Dashboard() {
             <CardContent className="p-6">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {businessTypes.map((businessType, index) => (
-                  <BusinessTypeCard key={index} businessType={businessType} />
+                  <div key={index} onClick={() => handleBusinessTypeClick(businessType.businessType)} className="cursor-pointer">
+                    <BusinessTypeCard businessType={businessType} />
+                  </div>
                 ))}
               </div>
             </CardContent>

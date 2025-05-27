@@ -6,13 +6,22 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Phone, Globe, MessageSquare, Calendar, Target } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import type { Business } from "@shared/schema";
 import { BUSINESS_TYPES } from "@shared/schema";
 
 export default function Prospects() {
   const [selectedType, setSelectedType] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+
+  // Read URL parameters to auto-filter by business type
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const typeParam = urlParams.get('type');
+    if (typeParam && BUSINESS_TYPES.includes(typeParam as any)) {
+      setSelectedType(typeParam);
+    }
+  }, []);
 
   const { data: businesses, isLoading } = useQuery({
     queryKey: ["/api/businesses"],
