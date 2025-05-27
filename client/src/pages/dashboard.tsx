@@ -65,7 +65,7 @@ export default function Dashboard() {
       description: "High-value projects need trust and credentials",
       successRate: "78%",
       prospects: "19 prospects found", 
-      imageUrl: "https://images.unsplash.com/photo-1632778149955-e80f8ceca2e8?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
+      imageUrl: "https://images.unsplash.com/photo-1504307651254-35680f356dfd?ixlib=rb-4.0.3&auto=format&fit=crop&w=400&h=250",
     },
     {
       name: "Cleaning Services",
