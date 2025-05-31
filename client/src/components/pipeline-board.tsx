@@ -15,7 +15,9 @@ export default function PipelineBoard() {
     queryFn: api.getBusinesses,
   });
 
-  const { data: stats } = useQuery({
+  const { data: stats } = useQuery<{
+    stageStats?: Record<PipelineStage, number>;
+  }>({
     queryKey: ["/api/stats"],
   });
 
@@ -108,13 +110,13 @@ export default function PipelineBoard() {
         return (
           <div
             key={stage}
-            className="bg-gray-50 rounded-lg p-4 pipeline-column"
+            className="bg-gray-50 rounded-lg p-4 pipeline-column min-w-0"
             onDragOver={handleDragOver}
             onDrop={(e) => handleDrop(e, stage)}
           >
             <div className="flex items-center justify-between mb-4">
-              <h3 className="font-medium text-gray-900">{getStageTitle(stage)}</h3>
-              <Badge variant="secondary" className={getStageColor(stage)}>
+              <h3 className="font-medium text-gray-900 truncate mr-2">{getStageTitle(stage)}</h3>
+              <Badge variant="secondary" className={`${getStageColor(stage)} flex-shrink-0`}>
                 {stageCount}
               </Badge>
             </div>

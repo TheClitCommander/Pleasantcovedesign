@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Eye, MessageCircle, Calendar, Check, ExternalLink } from "lucide-react";
+import { useLocation } from "wouter";
 import type { Business } from "@shared/schema";
 
 interface LeadCardProps {
@@ -11,6 +12,8 @@ interface LeadCardProps {
 }
 
 export default function LeadCard({ business, isDragging, onDragStart, onDragEnd }: LeadCardProps) {
+  const [, setLocation] = useLocation();
+
   const formatTimeAgo = (date: Date | string | null) => {
     if (!date) return "Recently";
     
@@ -56,32 +59,53 @@ export default function LeadCard({ business, isDragging, onDragStart, onDragEnd 
     }
   };
 
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if we're dragging
+    if (isDragging) return;
+    
+    // Don't navigate if clicking on the button
+    if ((e.target as HTMLElement).closest('button')) return;
+    
+    setLocation(`/business/${business.id}`);
+  };
+
   const status = getStageStatus();
 
   return (
     <div
-      className={`bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-move hover:shadow-md transition-shadow ${
+      className={`bg-white rounded-lg p-3 shadow-sm border border-gray-200 cursor-pointer hover:shadow-md transition-shadow ${
         isDragging ? "dragging" : ""
       }`}
       draggable
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
+      onClick={handleCardClick}
     >
-      <h4 className="font-medium text-sm text-gray-900">{business.name}</h4>
-      <p className="text-xs text-gray-600 mt-1">{business.city}, {business.state}</p>
-      <p className="text-xs text-gray-500 mt-1">{business.phone}</p>
+      <h4 className="font-medium text-sm text-gray-900 truncate" title={business.name}>
+        {business.name}
+      </h4>
+      <p className="text-xs text-gray-600 mt-1 truncate" title={`${business.city}, ${business.state}`}>
+        {business.city}, {business.state}
+      </p>
       
       {business.stage === "sold" && (
-        <p className="text-xs text-green-600 font-medium mt-1">$400 + $50/mo</p>
+        <p className="text-xs text-green-600 font-medium mt-2">$400 + $50/mo</p>
       )}
       
       {business.stage === "delivered" && business.website && (
-        <p className="text-xs text-green-600 font-medium mt-1">Live website</p>
+        <p className="text-xs text-green-600 font-medium mt-2">Live website</p>
       )}
       
-      <div className="mt-2 flex justify-between items-center">
-        <span className={`text-xs ${status.color}`}>{status.text}</span>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-primary hover:text-blue-700">
+      <div className="mt-3 flex justify-between items-center">
+        <span className={`text-xs ${status.color} truncate flex-1 mr-2`}>
+          {status.text}
+        </span>
+        <Button 
+          variant="ghost" 
+          size="sm" 
+          className="h-6 w-6 p-0 text-primary hover:text-blue-700 flex-shrink-0"
+          onClick={(e) => e.stopPropagation()}
+        >
           {getStageIcon()}
         </Button>
       </div>

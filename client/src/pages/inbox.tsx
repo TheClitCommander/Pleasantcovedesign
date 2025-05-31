@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 import { 
   Globe, 
   MessageSquare, 
@@ -19,15 +21,22 @@ import {
   CheckCircle,
   AlertCircle,
   Image,
-  FileText
+  FileText,
+  Loader2,
+  Zap,
+  CalendarPlus
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import type { Business } from "@shared/schema";
+import moment from "moment";
 
 export default function Inbox() {
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [newMessage, setNewMessage] = useState("");
   const [activeTab, setActiveTab] = useState("messages");
+  const [showPreview, setShowPreview] = useState(false);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: businesses } = useQuery({
     queryKey: ["/api/businesses"],
@@ -110,6 +119,113 @@ export default function Inbox() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase();
   };
 
+  // Generate suggested message based on lead stage and score
+  const getSuggestedMessage = useMemo(() => {
+    if (!selectedBusiness) return "";
+    
+    const firstName = selectedBusiness.name.split(' ')[0];
+    const score = selectedBusiness.score || 0;
+    const stage = selectedBusiness.stage;
+    
+    // If lead is qualified and hasn't scheduled yet
+    if (score >= 70 && (stage === 'contacted' || stage === 'scraped' || stage === 'interested')) {
+      return `Hey ${firstName}, it's Ben from Pleasant Cove Design. I'd love to chat about your website — you can book a free consultation at a time that works for you here: https://www.pleasantcovedesign.com/schedule?lead_id=${selectedBusiness.id}`;
+    }
+    
+    // Follow-up message for interested leads
+    if (stage === 'interested') {
+      return `Hi ${firstName}, just following up on our conversation. Ready to move forward with your website? Let me know if you have any questions or want to schedule a quick call: https://www.pleasantcovedesign.com/schedule?lead_id=${selectedBusiness.id}`;
+    }
+    
+    // Default message
+    return `Hi ${firstName}, it's Ben from Pleasant Cove Design. How can I help you today?`;
+  }, [selectedBusiness]);
+
+  // Send message mutation
+  const sendMessageMutation = useMutation({
+    mutationFn: async (messageData: { leadId: number; channel: string; body: string }) => {
+      const response = await fetch('/api/messages/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(messageData),
+      });
+      if (!response.ok) throw new Error('Failed to send message');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Message sent successfully",
+        description: "Your SMS has been delivered",
+      });
+      setShowPreview(false);
+      // Invalidate queries to refresh conversation
+      queryClient.invalidateQueries({ queryKey: ["/api/businesses"] });
+    },
+    onError: () => {
+      toast({
+        title: "Failed to send message",
+        description: "Please try again later",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSendSuggestedMessage = () => {
+    if (!selectedBusiness) return;
+    
+    sendMessageMutation.mutate({
+      leadId: selectedBusiness.id,
+      channel: 'sms',
+      body: getSuggestedMessage,
+    });
+  };
+
+  // Quick schedule mutation
+  const quickScheduleMutation = useMutation({
+    mutationFn: async (businessId: number) => {
+      // Get next available 8:30 AM slot
+      const tomorrow = moment().add(1, 'day').format('YYYY-MM-DD');
+      const dayAfter = moment().add(2, 'days').format('YYYY-MM-DD');
+      
+      // Try tomorrow first
+      const { slots: tomorrowSlots } = await api.getAvailableSlots(tomorrow, businessId);
+      const tomorrow830 = tomorrowSlots.find(slot => moment(slot).format('HH:mm') === '08:30');
+      
+      if (tomorrow830) {
+        return api.bookAppointment(businessId, tomorrow830);
+      }
+      
+      // Try day after
+      const { slots: dayAfterSlots } = await api.getAvailableSlots(dayAfter, businessId);
+      const dayAfter830 = dayAfterSlots.find(slot => moment(slot).format('HH:mm') === '08:30');
+      
+      if (dayAfter830) {
+        return api.bookAppointment(businessId, dayAfter830);
+      }
+      
+      throw new Error('No available 8:30 AM slots in the next 2 days');
+    },
+    onSuccess: (data, businessId) => {
+      const business = businesses?.find(b => b.id === businessId);
+      const appointmentTime = moment(data.booking.scheduledTime).format('dddd [at] h:mm A');
+      
+      toast({
+        title: "✅ Consultation scheduled",
+        description: `${business?.name} scheduled for ${appointmentTime}`,
+      });
+      
+      queryClient.invalidateQueries({ queryKey: ["/api/businesses"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
+    },
+    onError: (error) => {
+      toast({
+        title: "Failed to schedule",
+        description: error instanceof Error ? error.message : "Please try again",
+        variant: "destructive",
+      });
+    },
+  });
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Navigation */}
@@ -125,7 +241,8 @@ export default function Inbox() {
             <div className="hidden md:flex space-x-6 ml-8">
               <a href="/" className="text-gray-600 hover:text-gray-900">Dashboard</a>
               <a href="/prospects" className="text-gray-600 hover:text-gray-900">Prospects</a>
-              <a href="#" className="text-primary border-b-2 border-primary pb-2 font-medium">Inbox</a>
+              <a href="/inbox" className="text-primary border-b-2 border-primary pb-2 font-medium">Inbox</a>
+              <a href="/scheduling" className="text-gray-600 hover:text-gray-900">Scheduling</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Templates</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Analytics</a>
             </div>
@@ -226,6 +343,21 @@ export default function Inbox() {
                         <Video className="w-4 h-4 mr-1" />
                         Video
                       </Button>
+                      {selectedBusiness.stage !== 'scheduled' && (
+                        <Button 
+                          size="sm" 
+                          variant="outline"
+                          onClick={() => quickScheduleMutation.mutate(selectedBusiness.id)}
+                          disabled={quickScheduleMutation.isPending}
+                        >
+                          {quickScheduleMutation.isPending ? (
+                            <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                          ) : (
+                            <CalendarPlus className="w-4 h-4 mr-1" />
+                          )}
+                          Quick Schedule
+                        </Button>
+                      )}
                       <Button size="sm">
                         <Calendar className="w-4 h-4 mr-1" />
                         Schedule
@@ -292,6 +424,67 @@ export default function Inbox() {
                         </Button>
                       </div>
                     </div>
+
+                    {/* Message Preview Panel */}
+                    {selectedBusiness && ((selectedBusiness.score || 0) >= 70 || selectedBusiness.stage === 'interested') && (
+                      <div className="mt-4 border-t pt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center space-x-2">
+                            <Zap className="w-4 h-4 text-yellow-500" />
+                            <span className="text-sm font-medium text-gray-700">Suggested Message</span>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setShowPreview(!showPreview)}
+                          >
+                            {showPreview ? 'Hide' : 'Show'}
+                          </Button>
+                        </div>
+                        
+                        {showPreview && (
+                          <div className="space-y-3">
+                            <Alert className="bg-blue-50 border-blue-200">
+                              <AlertDescription className="text-sm">
+                                This is an auto-generated scheduling invitation. Review before sending.
+                              </AlertDescription>
+                            </Alert>
+                            
+                            <Textarea
+                              value={getSuggestedMessage}
+                              readOnly
+                              className="resize-none bg-gray-50"
+                              rows={4}
+                            />
+                            
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2 text-sm text-gray-600">
+                                <CheckCircle className="w-4 h-4 text-green-500" />
+                                <span>SMS to {selectedBusiness.phone}</span>
+                              </div>
+                              
+                              <Button
+                                onClick={handleSendSuggestedMessage}
+                                disabled={sendMessageMutation.isPending}
+                                className="bg-green-600 hover:bg-green-700"
+                              >
+                                {sendMessageMutation.isPending ? (
+                                  <>
+                                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                    Sending...
+                                  </>
+                                ) : (
+                                  <>
+                                    <Send className="mr-2 h-4 w-4" />
+                                    Send This Message
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </TabsContent>
 
                   <TabsContent value="meetings" className="flex-1 p-4">

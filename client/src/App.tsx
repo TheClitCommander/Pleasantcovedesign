@@ -12,6 +12,9 @@ import Profile from "@/pages/profile";
 import Account from "@/pages/account";
 import Notifications from "@/pages/notifications";
 import CustomerSite from "@/pages/customer-site";
+import BusinessOverview from "@/pages/business-overview";
+import Scheduling from "@/pages/scheduling";
+import Analytics from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
 
 function Router() {
@@ -22,10 +25,13 @@ function Router() {
       <Route path="/inbox" component={Inbox} />
       <Route path="/leads" component={Leads} />
       <Route path="/campaigns" component={Campaigns} />
+      <Route path="/scheduling" component={Scheduling} />
+      <Route path="/analytics" component={Analytics} />
       <Route path="/profile" component={Profile} />
       <Route path="/account" component={Account} />
       <Route path="/notifications" component={Notifications} />
-      <Route path="/customer-example" component={CustomerSite} />
+      <Route path="/customer-site" component={CustomerSite} />
+      <Route path="/business/:id" component={BusinessOverview} />
       <Route component={NotFound} />
     </Switch>
   );

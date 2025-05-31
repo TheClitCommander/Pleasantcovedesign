@@ -147,6 +147,7 @@ export default function Prospects() {
               <a href="/" className="text-gray-600 hover:text-gray-900">Dashboard</a>
               <a href="/prospects" className="text-primary border-b-2 border-primary pb-2 font-medium">Prospects</a>
               <a href="/inbox" className="text-gray-600 hover:text-gray-900">Inbox</a>
+              <a href="/scheduling" className="text-gray-600 hover:text-gray-900">Scheduling</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Templates</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Analytics</a>
             </div>
