@@ -1,7 +1,103 @@
 # Appointment Attribution System
 
 ## Overview
-Every appointment in LocalBiz Pro is directly tied to its corresponding business/client for complete tracking and history.
+The appointment system has been refactored to support multiple appointments per business with full historical tracking. Instead of storing a single `scheduledTime` on the businesses table, we now have a dedicated `appointments` table.
+
+## Database Schema
+
+### Appointments Table
+```sql
+CREATE TABLE appointments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id INTEGER NOT NULL REFERENCES businesses(id),
+  datetime DATETIME NOT NULL,
+  status TEXT NOT NULL DEFAULT 'confirmed', -- 'confirmed' | 'completed' | 'no-show' | 'cancelled'
+  notes TEXT,
+  is_auto_scheduled INTEGER NOT NULL DEFAULT 0,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+)
+```
+
+### Key Features
+- **Multiple appointments per business**: Track full appointment history
+- **Status tracking**: Track confirmed, completed, no-show, and cancelled appointments
+- **Auto-scheduled flag**: Distinguish between manual drag-and-drop vs self-service bookings
+- **Notes field**: Store appointment-specific notes
+- **Timestamps**: Track when appointments were created and last updated
+
+## API Endpoints
+
+### Appointment CRUD Operations
+- `GET /api/appointments` - Get all appointments (optionally filtered by businessId)
+- `POST /api/appointments` - Create new appointment
+- `PATCH /api/appointments/:id` - Update appointment (reschedule, change status, add notes)
+- `DELETE /api/appointments/:id` - Cancel appointment (sets status to 'cancelled')
+- `GET /api/businesses/:id/appointments` - Get all appointments for a specific business
+
+### Data Flow
+
+1. **Creating Appointments**
+   - Drag lead to calendar → Creates appointment with `isAutoScheduled: false`
+   - Self-service booking → Creates appointment with `isAutoScheduled: true`
+   - Updates business stage to 'scheduled'
+
+2. **Updating Status**
+   - Mark as completed/no-show → Updates appointment status
+   - No-show triggers auto-SMS with reschedule link
+   - Logs activity in activities table
+
+3. **Rescheduling**
+   - Updates existing appointment datetime
+   - Logs "appointment_rescheduled" activity
+
+4. **Cancellation**
+   - Sets appointment status to 'cancelled'
+   - If no other active appointments, reverts business stage to 'contacted'
+
+## Frontend Implementation
+
+### Scheduling Page
+- Fetches appointments from `/api/appointments` endpoint
+- Displays appointments as calendar events
+- Drag-and-drop creates new appointments
+- Event drag updates appointment datetime
+
+### Client Profile - Bookings Tab
+- Shows all appointments for the business sorted by date
+- Highlights upcoming appointments
+- Action buttons for marking completed/no-show
+- Shows appointment metadata (auto-scheduled, created date)
+
+## Migration Guide
+
+To migrate existing appointment data from the businesses table:
+
+```bash
+# Run the migration script
+npx tsx scripts/migrate-appointments.ts
+```
+
+This will:
+1. Find all businesses with `scheduledTime` set
+2. Create corresponding appointments in the new table
+3. Preserve appointment status and auto-scheduled indicators
+4. Keep original data intact for verification
+
+## Legacy Support
+
+The system maintains backward compatibility:
+- Old `/api/schedule` endpoints still work but create appointments in the new table
+- `businesses.scheduledTime` field is preserved but no longer used
+- Activities table continues logging all appointment-related events
+
+## Best Practices
+
+1. **Always use appointment IDs** for updates, not business IDs
+2. **Check for conflicts** before creating appointments
+3. **Log activities** for all appointment changes
+4. **Handle status transitions** properly (e.g., no-show → auto-SMS)
+5. **Maintain data integrity** by updating business stage based on appointment status
 
 ## Current Implementation
 

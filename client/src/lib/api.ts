@@ -1,5 +1,5 @@
 import { apiRequest } from "./queryClient";
-import type { Business, InsertBusiness, Campaign, InsertCampaign, Activity, Template, AvailabilityConfig, InsertAvailabilityConfig, BlockedDate, InsertBlockedDate } from "@shared/schema";
+import type { Business, InsertBusiness, Campaign, InsertCampaign, Activity, Template, AvailabilityConfig, InsertAvailabilityConfig, BlockedDate, InsertBlockedDate, Appointment, InsertAppointment } from "@shared/schema";
 
 export const api = {
   // Stats
@@ -192,5 +192,32 @@ export const api = {
 
   deleteBlockedDate: async (id: number): Promise<void> => {
     await apiRequest("DELETE", `/api/blocked-dates/${id}`);
+  },
+
+  // Appointment APIs (new system)
+  getAppointments: async (businessId?: number): Promise<Appointment[]> => {
+    const params = businessId ? `?businessId=${businessId}` : "";
+    const res = await apiRequest("GET", `/api/appointments${params}`);
+    return res.json();
+  },
+
+  createAppointment: async (appointment: InsertAppointment): Promise<Appointment> => {
+    const res = await apiRequest("POST", "/api/appointments", appointment);
+    return res.json();
+  },
+
+  updateAppointment: async (id: number, updates: Partial<Appointment>): Promise<Appointment> => {
+    const res = await apiRequest("PATCH", `/api/appointments/${id}`, updates);
+    return res.json();
+  },
+
+  cancelAppointment: async (id: number): Promise<{ success: boolean; appointment: Appointment }> => {
+    const res = await apiRequest("DELETE", `/api/appointments/${id}`);
+    return res.json();
+  },
+
+  getBusinessAppointments: async (businessId: number): Promise<Appointment[]> => {
+    const res = await apiRequest("GET", `/api/businesses/${businessId}/appointments`);
+    return res.json();
   },
 };

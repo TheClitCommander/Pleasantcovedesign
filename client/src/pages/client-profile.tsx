@@ -49,16 +49,18 @@ export default function ClientProfile() {
     queryFn: () => api.getBusiness(businessId),
   });
 
-  // Fetch activities for this client
+  // Fetch client activities
   const { data: activities = [] } = useQuery({
-    queryKey: [`/api/businesses/${businessId}/activities`],
+    queryKey: ["/api/businesses", id, "activities"],
     queryFn: () => api.getBusinessActivities(businessId),
+    enabled: !!businessId,
   });
 
-  // Fetch all appointments for booking history
+  // Fetch client appointments from new appointments table
   const { data: appointments = [] } = useQuery({
-    queryKey: ["/api/scheduling/appointments"],
-    queryFn: api.getSchedulingAppointments,
+    queryKey: ["/api/businesses", id, "appointments"],
+    queryFn: () => api.getBusinessAppointments(businessId),
+    enabled: !!businessId,
   });
 
   // Filter appointments for this client
@@ -85,18 +87,22 @@ export default function ClientProfile() {
 
   // Update appointment status mutation
   const updateAppointmentStatusMutation = useMutation({
-    mutationFn: ({ businessId, status }: { businessId: number, status: string }) =>
-      fetch(`/api/scheduling/appointments/${businessId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      }).then(res => res.json()),
+    mutationFn: ({ appointmentId, status }: { appointmentId: number; status: string }) =>
+      api.updateAppointment(appointmentId, { status }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/scheduling/appointments"] });
-      queryClient.invalidateQueries({ queryKey: [`/api/businesses/${businessId}/activities`] });
+      queryClient.invalidateQueries({ queryKey: ["/api/businesses", id, "appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/businesses"] });
+      
       toast({
-        title: "Status updated",
-        description: "Appointment status has been updated",
+        title: "Appointment updated",
+        description: "The appointment status has been updated.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to update appointment status.",
+        variant: "destructive",
       });
     },
   });
@@ -299,108 +305,106 @@ export default function ClientProfile() {
                 <CardTitle>Appointment History</CardTitle>
               </CardHeader>
               <CardContent>
-                {clientAppointments.length === 0 && !client.scheduledTime ? (
+                {appointments.length === 0 ? (
                   <p className="text-gray-500 text-center py-8">No appointments scheduled</p>
                 ) : (
                   <div className="space-y-4">
-                    {/* Show current/future appointment if exists */}
-                    {client.scheduledTime && (
-                      <div className="border rounded-lg p-4 bg-blue-50 border-blue-200">
-                        <div className="flex items-start justify-between">
-                          <div>
-                            <div className="flex items-center gap-2">
-                              <p className="font-medium">
-                                {moment(client.scheduledTime).format('MMMM D, YYYY')}
-                              </p>
-                              <Badge className="bg-blue-100 text-blue-700">Current</Badge>
-                            </div>
-                            <p className="text-sm text-gray-600">
-                              {moment(client.scheduledTime).format('h:mm A')}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Badge 
-                              variant={
-                                client.appointmentStatus === 'completed' ? 'default' :
-                                client.appointmentStatus === 'no-show' ? 'destructive' :
-                                'secondary'
-                              }
-                            >
-                              {client.appointmentStatus || 'confirmed'}
-                            </Badge>
-                            
-                            {/* Action buttons for current appointment */}
-                            {client.appointmentStatus !== 'completed' && client.appointmentStatus !== 'no-show' && (
-                              <div className="flex gap-1">
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => {
-                                    if (confirm('Mark this appointment as completed?')) {
-                                      updateAppointmentStatusMutation.mutate({
-                                        businessId: client.id,
-                                        status: 'completed'
-                                      });
-                                    }
-                                  }}
-                                >
-                                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                                  Complete
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  className="text-red-600 hover:text-red-700"
-                                  onClick={() => {
-                                    if (confirm('Mark this appointment as no-show?')) {
-                                      updateAppointmentStatusMutation.mutate({
-                                        businessId: client.id,
-                                        status: 'no-show'
-                                      });
-                                    }
-                                  }}
-                                >
-                                  <XCircle className="h-3 w-3 mr-1" />
-                                  No-show
-                                </Button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                    {/* Show all appointments sorted by date */}
+                    {appointments
+                      .sort((a, b) => new Date(b.datetime).getTime() - new Date(a.datetime).getTime())
+                      .map((appointment) => {
+                        const isPast = moment(appointment.datetime).isBefore(moment());
+                        const isCurrent = !isPast && appointment.status !== 'cancelled';
                         
-                        {/* Notes for current appointment */}
-                        {client.notes?.includes('Source: Scheduling Link') && (
-                          <div className="mt-2 text-xs text-gray-500">
-                            <Badge variant="outline" className="text-xs">Self-scheduled</Badge>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Historical appointments from activities */}
-                    {activities
-                      .filter(a => 
-                        a.type === 'meeting_scheduled' || 
-                        a.type === 'meeting_rescheduled' ||
-                        a.type === 'appointment_status_updated' ||
-                        a.type === 'no_show'
-                      )
-                      .map((activity, idx) => (
-                        <div key={activity.id} className="border rounded-lg p-4 bg-gray-50">
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <p className="text-sm font-medium">{activity.description}</p>
-                              <p className="text-xs text-gray-500 mt-1">
-                                {moment(activity.createdAt).format('MMM D, YYYY h:mm A')}
-                              </p>
+                        return (
+                          <div 
+                            key={appointment.id} 
+                            className={`border rounded-lg p-4 ${
+                              isCurrent ? 'bg-blue-50 border-blue-200' : 
+                              appointment.status === 'cancelled' ? 'bg-gray-50 border-gray-200' :
+                              'bg-gray-50'
+                            }`}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div>
+                                <div className="flex items-center gap-2">
+                                  <p className="font-medium">
+                                    {moment(appointment.datetime).format('MMMM D, YYYY')}
+                                  </p>
+                                  {isCurrent && (
+                                    <Badge className="bg-blue-100 text-blue-700">Upcoming</Badge>
+                                  )}
+                                </div>
+                                <p className="text-sm text-gray-600">
+                                  {moment(appointment.datetime).format('h:mm A')}
+                                </p>
+                                {appointment.notes && (
+                                  <p className="text-sm text-gray-500 mt-1">{appointment.notes}</p>
+                                )}
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge 
+                                  variant={
+                                    appointment.status === 'completed' ? 'default' :
+                                    appointment.status === 'no-show' ? 'destructive' :
+                                    appointment.status === 'cancelled' ? 'secondary' :
+                                    'outline'
+                                  }
+                                >
+                                  {appointment.status}
+                                </Badge>
+                                
+                                {/* Action buttons for current/future appointments */}
+                                {isCurrent && appointment.status === 'confirmed' && (
+                                  <div className="flex gap-1">
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => {
+                                        if (confirm('Mark this appointment as completed?')) {
+                                          updateAppointmentStatusMutation.mutate({
+                                            appointmentId: appointment.id,
+                                            status: 'completed'
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      Complete
+                                    </Button>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-red-600 hover:text-red-700"
+                                      onClick={() => {
+                                        if (confirm('Mark this appointment as no-show?')) {
+                                          updateAppointmentStatusMutation.mutate({
+                                            appointmentId: appointment.id,
+                                            status: 'no-show'
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <XCircle className="h-3 w-3 mr-1" />
+                                      No-show
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            <Badge variant="outline" className="text-xs">
-                              <Activity className="h-3 w-3 mr-1" />
-                              Activity Log
-                            </Badge>
+                            
+                            {/* Additional metadata */}
+                            <div className="mt-2 flex gap-2">
+                              {appointment.isAutoScheduled && (
+                                <Badge variant="outline" className="text-xs">Self-scheduled</Badge>
+                              )}
+                              <span className="text-xs text-gray-500">
+                                Created {moment(appointment.createdAt).format('MMM D, YYYY')}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 )}
                 

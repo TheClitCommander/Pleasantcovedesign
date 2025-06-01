@@ -93,6 +93,20 @@ const createTables = () => {
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP
     )
   `);
+
+  // Create appointments table
+  sqlite.exec(`
+    CREATE TABLE IF NOT EXISTS appointments (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      business_id INTEGER NOT NULL REFERENCES businesses(id),
+      datetime DATETIME NOT NULL,
+      status TEXT NOT NULL DEFAULT 'confirmed',
+      notes TEXT,
+      is_auto_scheduled INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 };
 
 // Initialize tables

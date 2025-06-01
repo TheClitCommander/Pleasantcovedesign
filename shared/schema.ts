@@ -71,6 +71,17 @@ export const blockedDates = sqliteTable("blocked_dates", {
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 });
 
+export const appointments = sqliteTable("appointments", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  businessId: integer("business_id").notNull().references(() => businesses.id),
+  datetime: text("datetime").notNull(), // ISO datetime string
+  status: text("status").notNull().default("confirmed"), // 'confirmed' | 'completed' | 'no-show' | 'cancelled'
+  notes: text("notes"),
+  isAutoScheduled: integer("is_auto_scheduled", { mode: 'boolean' }).notNull().default(false),
+  createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
+  updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
+});
+
 // Insert schemas
 export const insertBusinessSchema = createInsertSchema(businesses).omit({
   id: true,
@@ -101,6 +112,12 @@ export const insertBlockedDateSchema = createInsertSchema(blockedDates).omit({
   createdAt: true,
 });
 
+export const insertAppointmentSchema = createInsertSchema(appointments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type Business = typeof businesses.$inferSelect;
 export type InsertBusiness = z.infer<typeof insertBusinessSchema>;
@@ -114,6 +131,8 @@ export type AvailabilityConfig = typeof availabilityConfig.$inferSelect;
 export type InsertAvailabilityConfig = z.infer<typeof insertAvailabilityConfigSchema>;
 export type BlockedDate = typeof blockedDates.$inferSelect;
 export type InsertBlockedDate = z.infer<typeof insertBlockedDateSchema>;
+export type Appointment = typeof appointments.$inferSelect;
+export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
 
 // Pipeline stages
 export const PIPELINE_STAGES = ["scraped", "scheduled", "contacted", "interested", "sold", "delivered"] as const;

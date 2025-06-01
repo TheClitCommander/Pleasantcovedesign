@@ -118,11 +118,16 @@ export default function Scheduling() {
   // Schedule mutation
   const scheduleMutation = useMutation({
     mutationFn: ({ businessId, datetime }: { businessId: number; datetime: string }) =>
-      api.createSchedule(businessId, datetime),
+      api.createAppointment({
+        businessId,
+        datetime,
+        isAutoScheduled: false,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/leads/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
       queryClient.invalidateQueries({ queryKey: ["/api/scheduling/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/businesses"] });
       toast({
         title: "Meeting scheduled",
@@ -188,10 +193,11 @@ export default function Scheduling() {
 
   // Update appointment status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: ({ businessId, status }: { businessId: number; status: 'confirmed' | 'completed' | 'no-show' }) =>
-      api.updateAppointmentStatus(businessId, status),
+    mutationFn: ({ appointmentId, status }: { appointmentId: number; status: 'confirmed' | 'completed' | 'no-show' }) =>
+      api.updateAppointment(appointmentId, { status }),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/scheduling/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/businesses"] });
       
       const statusMessages = {
@@ -220,21 +226,18 @@ export default function Scheduling() {
 
   // Cancel appointment mutation
   const cancelAppointmentMutation = useMutation({
-    mutationFn: (businessId: number) =>
-      api.updateBusiness(businessId, { 
-        stage: 'scraped', 
-        scheduledTime: null,
-        appointmentStatus: null 
-      }),
+    mutationFn: (appointmentId: number) =>
+      api.cancelAppointment(appointmentId),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/scheduling/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
       queryClient.invalidateQueries({ queryKey: ["/api/leads/pending"] });
       queryClient.invalidateQueries({ queryKey: ["/api/businesses"] });
       
       toast({
         title: "Appointment cancelled",
-        description: "The appointment has been cancelled and the lead moved back to pending.",
+        description: "The appointment has been cancelled.",
       });
       
       // Close modal
@@ -252,10 +255,11 @@ export default function Scheduling() {
 
   // Reschedule appointment mutation
   const rescheduleMutation = useMutation({
-    mutationFn: ({ businessId, datetime }: { businessId: number; datetime: string }) =>
-      api.createSchedule(businessId, datetime),
+    mutationFn: ({ appointmentId, datetime }: { appointmentId: number; datetime: string }) =>
+      api.updateAppointment(appointmentId, { datetime }),
     onSuccess: (data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["/api/scheduling/appointments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/appointments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/schedule"] });
       queryClient.invalidateQueries({ queryKey: ["/api/businesses"] });
       
@@ -1129,7 +1133,7 @@ export default function Scheduling() {
                             size="sm"
                             variant="outline"
                             onClick={() => updateStatusMutation.mutate({
-                              businessId: selectedEvent.businessId,
+                              appointmentId: selectedEvent.id,
                               status: 'completed'
                             })}
                             disabled={updateStatusMutation.isPending}
@@ -1143,7 +1147,7 @@ export default function Scheduling() {
                           variant="outline"
                           className="text-red-600 hover:text-red-700"
                           onClick={() => updateStatusMutation.mutate({
-                            businessId: selectedEvent.businessId,
+                            appointmentId: selectedEvent.id,
                             status: 'no-show'
                           })}
                           disabled={updateStatusMutation.isPending}
@@ -1191,7 +1195,7 @@ export default function Scheduling() {
                         className="text-red-600 hover:text-red-700 hover:bg-red-50"
                         onClick={() => {
                           if (confirm("Are you sure you want to cancel this appointment? The lead will be moved back to pending.")) {
-                            cancelAppointmentMutation.mutate(selectedEvent.businessId);
+                            cancelAppointmentMutation.mutate(selectedEvent.id);
                           }
                         }}
                         disabled={cancelAppointmentMutation.isPending}
@@ -1414,7 +1418,7 @@ export default function Scheduling() {
                     }
                     
                     rescheduleMutation.mutate({
-                      businessId: rescheduleForm.businessId,
+                      appointmentId: selectedEvent?.id || 0,
                       datetime
                     });
                   }}

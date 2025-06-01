@@ -9,21 +9,36 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { 
   MessageSquare, Plus, Edit2, Trash2, Copy, Eye, FileText, 
-  Loader2, Building2, Search
+  Loader2, Building2, Search, Tag, Mail, Hash, EyeOff
 } from "lucide-react";
 import type { Template, InsertTemplate } from "@shared/schema";
+
+// Available tags for templates
+const TEMPLATE_TAGS = [
+  { value: "follow-up", label: "Follow-up", color: "bg-blue-100 text-blue-700" },
+  { value: "thank-you", label: "Thank You", color: "bg-green-100 text-green-700" },
+  { value: "reminder", label: "Reminder", color: "bg-yellow-100 text-yellow-700" },
+  { value: "project-complete", label: "Project Complete", color: "bg-purple-100 text-purple-700" },
+  { value: "no-show", label: "No-Show", color: "bg-red-100 text-red-700" },
+  { value: "welcome", label: "Welcome", color: "bg-indigo-100 text-indigo-700" },
+  { value: "check-in", label: "Check-in", color: "bg-gray-100 text-gray-700" },
+];
 
 export default function Templates() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   
   // State
+  const [activeTab, setActiveTab] = useState<"sms" | "email">("sms");
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<Template | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTag, setSelectedTag] = useState<string>("all");
+  const [showPreview, setShowPreview] = useState<number | null>(null);
   const [templateForm, setTemplateForm] = useState<InsertTemplate>({
     name: "",
     businessType: "general",
@@ -95,7 +110,7 @@ export default function Templates() {
   const resetForm = () => {
     setTemplateForm({
       name: "",
-      businessType: "general",
+      businessType: activeTab === "sms" ? "general" : "email",
       description: "",
       previewUrl: null,
       features: null,
@@ -128,11 +143,24 @@ export default function Templates() {
     setShowCreateModal(true);
   };
 
-  // Filter templates based on search
-  const filteredTemplates = templates.filter(template =>
-    template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    template.description.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // Filter templates based on search, type, and tag
+  const filteredTemplates = templates.filter(template => {
+    // Filter by type (SMS vs Email)
+    const isCorrectType = activeTab === "sms" 
+      ? template.businessType !== "email" 
+      : template.businessType === "email";
+    
+    // Filter by search query
+    const matchesSearch = !searchQuery || 
+      template.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      template.description.toLowerCase().includes(searchQuery.toLowerCase());
+    
+    // Filter by tag
+    const matchesTag = selectedTag === "all" || 
+      (template.features && template.features.includes(selectedTag));
+    
+    return isCorrectType && matchesSearch && matchesTag;
+  });
 
   // Duplicate template
   const duplicateTemplate = (template: Template) => {
@@ -144,6 +172,16 @@ export default function Templates() {
       features: template.features,
     });
     setShowCreateModal(true);
+  };
+
+  // Render preview with variable substitution
+  const renderPreview = (content: string) => {
+    return content
+      .replace(/\{\{name\}\}/g, 'John Doe')
+      .replace(/\{\{business\}\}/g, 'Sample Business')
+      .replace(/\{\{date\}\}/g, new Date().toLocaleDateString())
+      .replace(/\{\{time\}\}/g, '2:00 PM')
+      .replace(/\{\{link\}\}/g, 'https://example.com/booking');
   };
 
   if (isLoading) {
@@ -189,105 +227,256 @@ export default function Templates() {
                 Create and manage SMS and email templates for client communication
               </p>
             </div>
-            <Button onClick={() => setShowCreateModal(true)}>
+            <Button onClick={() => {
+              resetForm();
+              setShowCreateModal(true);
+            }}>
               <Plus className="h-4 w-4 mr-2" />
-              New Template
+              New {activeTab === "sms" ? "SMS" : "Email"} Template
             </Button>
           </div>
 
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
-            <Input
-              placeholder="Search templates..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10"
-            />
-          </div>
+          {/* Tabs */}
+          <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as "sms" | "email")}>
+            <TabsList className="mb-4">
+              <TabsTrigger value="sms" className="flex items-center">
+                <MessageSquare className="h-4 w-4 mr-2" />
+                SMS Templates
+              </TabsTrigger>
+              <TabsTrigger value="email" className="flex items-center">
+                <Mail className="h-4 w-4 mr-2" />
+                Email Templates
+              </TabsTrigger>
+            </TabsList>
 
-          {/* Templates Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredTemplates.length === 0 ? (
-              <Card className="col-span-full">
-                <CardContent className="text-center py-12">
-                  <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <h3 className="text-lg font-medium text-gray-900 mb-2">
-                    {searchQuery ? "No templates found" : "No templates yet"}
-                  </h3>
-                  <p className="text-gray-500 mb-4">
-                    {searchQuery 
-                      ? "Try adjusting your search" 
-                      : "Create your first template to get started"}
-                  </p>
-                  {!searchQuery && (
-                    <Button onClick={() => setShowCreateModal(true)}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      Create Template
-                    </Button>
+            <div className="space-y-4">
+              {/* Filters */}
+              <div className="flex flex-col md:flex-row gap-4">
+                <div className="flex-1 relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                  <Input
+                    placeholder="Search templates..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+                <Select value={selectedTag} onValueChange={setSelectedTag}>
+                  <SelectTrigger className="w-[200px]">
+                    <Tag className="h-4 w-4 mr-2" />
+                    <SelectValue placeholder="Filter by tag" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tags</SelectItem>
+                    {TEMPLATE_TAGS.map(tag => (
+                      <SelectItem key={tag.value} value={tag.value}>{tag.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Templates List */}
+              <TabsContent value="sms" className="mt-0">
+                <div className="space-y-4">
+                  {filteredTemplates.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                          {searchQuery || selectedTag !== "all" ? "No templates found" : "No SMS templates yet"}
+                        </h3>
+                        <p className="text-gray-500 mb-4">
+                          {searchQuery || selectedTag !== "all" 
+                            ? "Try adjusting your filters" 
+                            : "Create your first SMS template to get started"}
+                        </p>
+                        {!searchQuery && selectedTag === "all" && (
+                          <Button onClick={() => setShowCreateModal(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create SMS Template
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    filteredTemplates.map(template => (
+                      <Card key={template.id} className="overflow-hidden">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-lg flex items-center">
+                                {template.name}
+                                <Badge variant="secondary" className="ml-2">
+                                  <Hash className="h-3 w-3 mr-1" />
+                                  {template.usageCount || 0} uses
+                                </Badge>
+                              </CardTitle>
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {template.features?.split(',').map(tag => {
+                                  const tagInfo = TEMPLATE_TAGS.find(t => t.value === tag.trim());
+                                  return tagInfo ? (
+                                    <Badge key={tag} className={tagInfo.color}>
+                                      {tagInfo.label}
+                                    </Badge>
+                                  ) : null;
+                                })}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setShowPreview(showPreview === template.id ? null : template.id)}
+                              >
+                                {showPreview === template.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEdit(template)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => duplicateTemplate(template)}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (confirm("Delete this template?")) {
+                                    deleteTemplateMutation.mutate(template.id!);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className={`text-sm ${showPreview === template.id ? 'bg-gray-50 p-3 rounded-lg' : 'text-gray-600'}`}>
+                            {showPreview === template.id ? (
+                              <div>
+                                <p className="text-xs text-gray-500 mb-2">Preview with sample data:</p>
+                                <p className="whitespace-pre-wrap">{renderPreview(template.description)}</p>
+                              </div>
+                            ) : (
+                              <p className="line-clamp-2">{template.description}</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
                   )}
-                </CardContent>
-              </Card>
-            ) : (
-              filteredTemplates.map(template => (
-                <Card key={template.id}>
-                  <CardHeader>
-                    <div className="flex items-start justify-between">
-                      <CardTitle className="text-lg">{template.name}</CardTitle>
-                      <Badge variant="outline">
-                        {template.businessType === 'email' ? 'Email' : 'SMS'}
-                      </Badge>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="text-sm text-gray-600 line-clamp-3">
-                      {template.description}
-                    </div>
+                </div>
+              </TabsContent>
 
-                    {/* Usage count */}
-                    <div className="text-xs text-gray-500">
-                      Used {template.usageCount} times
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center justify-between pt-2 border-t">
-                      <div className="flex items-center space-x-1">
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => startEdit(template)}
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => duplicateTemplate(template)}
-                        >
-                          <Copy className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => {
-                            if (confirm("Delete this template?")) {
-                              deleteTemplateMutation.mutate(template.id!);
-                            }
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                      <Button size="sm" variant="outline">
-                        <Eye className="h-4 w-4 mr-1" />
-                        Preview
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))
-            )}
-          </div>
+              <TabsContent value="email" className="mt-0">
+                <div className="space-y-4">
+                  {filteredTemplates.length === 0 ? (
+                    <Card>
+                      <CardContent className="text-center py-12">
+                        <Mail className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                        <h3 className="text-lg font-medium text-gray-900 mb-2">
+                          {searchQuery || selectedTag !== "all" ? "No templates found" : "No email templates yet"}
+                        </h3>
+                        <p className="text-gray-500 mb-4">
+                          {searchQuery || selectedTag !== "all" 
+                            ? "Try adjusting your filters" 
+                            : "Create your first email template to get started"}
+                        </p>
+                        {!searchQuery && selectedTag === "all" && (
+                          <Button onClick={() => setShowCreateModal(true)}>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Create Email Template
+                          </Button>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ) : (
+                    filteredTemplates.map(template => (
+                      <Card key={template.id} className="overflow-hidden">
+                        <CardHeader>
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <CardTitle className="text-lg flex items-center">
+                                {template.name}
+                                <Badge variant="secondary" className="ml-2">
+                                  <Hash className="h-3 w-3 mr-1" />
+                                  {template.usageCount || 0} uses
+                                </Badge>
+                              </CardTitle>
+                              <div className="flex flex-wrap gap-1 mt-2">
+                                {template.features?.split(',').map(tag => {
+                                  const tagInfo = TEMPLATE_TAGS.find(t => t.value === tag.trim());
+                                  return tagInfo ? (
+                                    <Badge key={tag} className={tagInfo.color}>
+                                      {tagInfo.label}
+                                    </Badge>
+                                  ) : null;
+                                })}
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setShowPreview(showPreview === template.id ? null : template.id)}
+                              >
+                                {showPreview === template.id ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => startEdit(template)}
+                              >
+                                <Edit2 className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => duplicateTemplate(template)}
+                              >
+                                <Copy className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => {
+                                  if (confirm("Delete this template?")) {
+                                    deleteTemplateMutation.mutate(template.id!);
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-4 w-4 text-red-500" />
+                              </Button>
+                            </div>
+                          </div>
+                        </CardHeader>
+                        <CardContent>
+                          <div className={`text-sm ${showPreview === template.id ? 'bg-gray-50 p-3 rounded-lg' : 'text-gray-600'}`}>
+                            {showPreview === template.id ? (
+                              <div>
+                                <p className="text-xs text-gray-500 mb-2">Preview with sample data:</p>
+                                <div className="whitespace-pre-wrap">{renderPreview(template.description)}</div>
+                              </div>
+                            ) : (
+                              <p className="line-clamp-3">{template.description}</p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    ))
+                  )}
+                </div>
+              </TabsContent>
+            </div>
+          </Tabs>
         </div>
       </div>
 
@@ -299,7 +488,7 @@ export default function Templates() {
         <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>
-              {editingTemplate ? "Edit Template" : "Create New Template"}
+              {editingTemplate ? "Edit Template" : `Create New ${activeTab === "sms" ? "SMS" : "Email"} Template`}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
@@ -308,22 +497,23 @@ export default function Templates() {
               <Input
                 value={templateForm.name}
                 onChange={(e) => setTemplateForm({ ...templateForm, name: e.target.value })}
-                placeholder="e.g., Website Launch Update"
+                placeholder={activeTab === "sms" ? "e.g., Follow-up SMS" : "e.g., Website Launch Email"}
               />
             </div>
 
             <div>
-              <Label>Type</Label>
+              <Label>Tags</Label>
               <Select
-                value={templateForm.businessType}
-                onValueChange={(value) => setTemplateForm({ ...templateForm, businessType: value })}
+                value={templateForm.features || ""}
+                onValueChange={(value) => setTemplateForm({ ...templateForm, features: value })}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder="Select a tag" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="general">SMS Template</SelectItem>
-                  <SelectItem value="email">Email Template</SelectItem>
+                  {TEMPLATE_TAGS.map(tag => (
+                    <SelectItem key={tag.value} value={tag.value}>{tag.label}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -333,11 +523,14 @@ export default function Templates() {
               <Textarea
                 value={templateForm.description}
                 onChange={(e) => setTemplateForm({ ...templateForm, description: e.target.value })}
-                placeholder="Hi {{name}}, your website is ready for review..."
-                rows={6}
+                placeholder={activeTab === "sms" 
+                  ? "Hi {{name}}, just checking in on {{business}}. Your next appointment is {{date}} at {{time}}..."
+                  : "Subject: Your Website is Ready!\n\nDear {{name}},\n\nWe're excited to announce that {{business}}'s new website is live..."
+                }
+                rows={activeTab === "sms" ? 4 : 10}
               />
               <p className="text-xs text-gray-500 mt-1">
-                Available variables: {"{{name}}"}, {"{{business}}"}, {"{{date}}"}
+                Available variables: {"{{name}}"}, {"{{business}}"}, {"{{date}}"}, {"{{time}}"}, {"{{link}}"}
               </p>
             </div>
 
@@ -347,11 +540,7 @@ export default function Templates() {
                 <Label>Preview</Label>
                 <div className="mt-2 p-4 bg-gray-50 rounded-lg">
                   <p className="text-sm whitespace-pre-wrap">
-                    {templateForm.description
-                      .replace('{{name}}', 'John Doe')
-                      .replace('{{business}}', 'Sample Business')
-                      .replace('{{date}}', new Date().toLocaleDateString())
-                    }
+                    {renderPreview(templateForm.description)}
                   </p>
                 </div>
               </div>

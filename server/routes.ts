@@ -6,6 +6,9 @@ import { insertBusinessSchema, insertCampaignSchema, PIPELINE_STAGES } from "@sh
 import { z } from "zod";
 import { launchOutreachForLead, launchBulkOutreach } from "./outreach";
 import moment from "moment";
+import { eq, desc, and, ne } from "drizzle-orm";
+import { db } from "./db";
+import * as schema from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   
@@ -875,6 +878,212 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error updating appointment status:", error);
       res.status(500).json({ error: "Failed to update appointment status" });
+    }
+  });
+
+  // New Appointment System CRUD endpoints
+  
+  // Get all appointments
+  app.get("/api/appointments", async (req, res) => {
+    try {
+      const { businessId } = req.query;
+      
+      if (businessId) {
+        // Get appointments for specific business
+        const appointments = await db.select()
+          .from(schema.appointments)
+          .where(eq(schema.appointments.businessId, parseInt(businessId as string)));
+        return res.json(appointments);
+      }
+      
+      // Get all appointments with business info
+      const appointments = await db.select({
+        appointment: schema.appointments,
+        business: schema.businesses,
+      })
+        .from(schema.appointments)
+        .leftJoin(schema.businesses, eq(schema.appointments.businessId, schema.businesses.id))
+        .orderBy(desc(schema.appointments.datetime));
+        
+      res.json(appointments);
+    } catch (error) {
+      console.error("Failed to fetch appointments:", error);
+      res.status(500).json({ error: "Failed to fetch appointments" });
+    }
+  });
+
+  // Create new appointment
+  app.post("/api/appointments", async (req, res) => {
+    try {
+      const { businessId, datetime, notes, isAutoScheduled = false } = req.body;
+      
+      if (!businessId || !datetime) {
+        return res.status(400).json({ error: "businessId and datetime are required" });
+      }
+
+      // Check for double-booking
+      const existingAppointments = await db.select()
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.datetime, datetime),
+            ne(schema.appointments.status, 'cancelled')
+          )
+        );
+      
+      if (existingAppointments.length > 0) {
+        return res.status(409).json({ error: "Time slot already booked" });
+      }
+
+      // Create appointment
+      const [appointment] = await db.insert(schema.appointments)
+        .values({
+          businessId,
+          datetime,
+          notes,
+          isAutoScheduled,
+          status: 'confirmed',
+        })
+        .returning();
+
+      // Update business stage
+      await storage.updateBusiness(businessId, {
+        stage: 'scheduled',
+      });
+
+      // Log activity
+      await storage.createActivity({
+        type: "appointment_created",
+        description: `Appointment scheduled for ${moment(datetime).format('MMM D, YYYY at h:mm A')}`,
+        businessId,
+      });
+
+      res.json(appointment);
+    } catch (error) {
+      console.error("Failed to create appointment:", error);
+      res.status(500).json({ error: "Failed to create appointment" });
+    }
+  });
+
+  // Update appointment
+  app.patch("/api/appointments/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { datetime, status, notes } = req.body;
+
+      const updates: any = {};
+      if (datetime) updates.datetime = datetime;
+      if (status) updates.status = status;
+      if (notes !== undefined) updates.notes = notes;
+      updates.updatedAt = new Date().toISOString();
+
+      const [appointment] = await db.update(schema.appointments)
+        .set(updates)
+        .where(eq(schema.appointments.id, id))
+        .returning();
+
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      // If rescheduling, log activity
+      if (datetime) {
+        await storage.createActivity({
+          type: "appointment_rescheduled",
+          description: `Appointment rescheduled to ${moment(datetime).format('MMM D, YYYY at h:mm A')}`,
+          businessId: appointment.businessId,
+        });
+      }
+
+      // If status changed to no-show, handle auto-reschedule
+      if (status === 'no-show') {
+        const business = await storage.getBusinessById(appointment.businessId);
+        if (business) {
+          // Send reschedule SMS
+          const rescheduleLink = `https://www.pleasantcovedesign.com/schedule?lead_id=${appointment.businessId}`;
+          const firstName = business.name.split(' ')[0];
+          const rescheduleMessage = `Hey ${firstName}, sorry we missed you! You can rebook here: ${rescheduleLink}`;
+          
+          console.log(`[Auto-Reschedule SMS] To ${business.phone}: ${rescheduleMessage}`);
+          
+          await storage.createActivity({
+            type: 'sms_sent',
+            description: 'Auto-reschedule message sent after no-show',
+            businessId: appointment.businessId,
+          });
+        }
+      }
+
+      res.json(appointment);
+    } catch (error) {
+      console.error("Failed to update appointment:", error);
+      res.status(500).json({ error: "Failed to update appointment" });
+    }
+  });
+
+  // Delete/Cancel appointment
+  app.delete("/api/appointments/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Update status to cancelled instead of deleting
+      const [appointment] = await db.update(schema.appointments)
+        .set({ 
+          status: 'cancelled',
+          updatedAt: new Date().toISOString()
+        })
+        .where(eq(schema.appointments.id, id))
+        .returning();
+
+      if (!appointment) {
+        return res.status(404).json({ error: "Appointment not found" });
+      }
+
+      // Update business stage if no other appointments
+      const otherAppointments = await db.select()
+        .from(schema.appointments)
+        .where(
+          and(
+            eq(schema.appointments.businessId, appointment.businessId),
+            ne(schema.appointments.id, id),
+            ne(schema.appointments.status, 'cancelled')
+          )
+        );
+
+      if (otherAppointments.length === 0) {
+        await storage.updateBusiness(appointment.businessId, {
+          stage: 'contacted',
+        });
+      }
+
+      // Log activity
+      await storage.createActivity({
+        type: "appointment_cancelled",
+        description: `Appointment cancelled`,
+        businessId: appointment.businessId,
+      });
+
+      res.json({ success: true, appointment });
+    } catch (error) {
+      console.error("Failed to cancel appointment:", error);
+      res.status(500).json({ error: "Failed to cancel appointment" });
+    }
+  });
+
+  // Get appointment history for a business
+  app.get("/api/businesses/:id/appointments", async (req, res) => {
+    try {
+      const businessId = parseInt(req.params.id);
+      
+      const appointments = await db.select()
+        .from(schema.appointments)
+        .where(eq(schema.appointments.businessId, businessId))
+        .orderBy(desc(schema.appointments.datetime));
+        
+      res.json(appointments);
+    } catch (error) {
+      console.error("Failed to fetch business appointments:", error);
+      res.status(500).json({ error: "Failed to fetch appointments" });
     }
   });
 
