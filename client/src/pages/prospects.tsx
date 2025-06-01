@@ -7,12 +7,14 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { MapPin, Phone, Globe, MessageSquare, Calendar, Target } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import type { Business } from "@shared/schema";
 import { BUSINESS_TYPES } from "@shared/schema";
 
 export default function Prospects() {
   const [selectedType, setSelectedType] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
+  const [, navigate] = useLocation();
 
   // Read URL parameters to auto-filter by business type
   useEffect(() => {
@@ -148,8 +150,9 @@ export default function Prospects() {
               <a href="/prospects" className="text-primary border-b-2 border-primary pb-2 font-medium">Prospects</a>
               <a href="/inbox" className="text-gray-600 hover:text-gray-900">Inbox</a>
               <a href="/scheduling" className="text-gray-600 hover:text-gray-900">Scheduling</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Templates</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Analytics</a>
+              <a href="/clients" className="text-gray-600 hover:text-gray-900">Clients</a>
+              <a href="/templates" className="text-gray-600 hover:text-gray-900">Templates</a>
+              <a href="/analytics" className="text-gray-600 hover:text-gray-900">Analytics</a>
             </div>
           </div>
         </div>
@@ -242,7 +245,15 @@ export default function Prospects() {
         {/* Prospects Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredBusinesses.map((business) => (
-            <Card key={business.id} className="hover:shadow-lg transition-shadow">
+            <Card 
+              key={business.id} 
+              className="hover:shadow-lg transition-shadow cursor-pointer"
+              onClick={(e) => {
+                // Prevent navigation if clicking on buttons
+                if ((e.target as HTMLElement).closest('button')) return;
+                navigate(`/prospects/${business.id}`);
+              }}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div>
@@ -271,7 +282,8 @@ export default function Prospects() {
                   <div className="flex items-center text-sm text-gray-600">
                     <Globe className="w-4 h-4 mr-2" />
                     <a href={business.website} target="_blank" rel="noopener noreferrer" 
-                       className="text-primary hover:underline">
+                       className="text-primary hover:underline"
+                       onClick={(e) => e.stopPropagation()}>
                       View Website
                     </a>
                   </div>
@@ -288,9 +300,16 @@ export default function Prospects() {
                     <Calendar className="w-3 h-3 mr-1" />
                     Call
                   </Button>
-                  <Button size="sm" className="flex-1 bg-primary hover:bg-blue-700 text-white">
+                  <Button 
+                    size="sm" 
+                    className="flex-1 bg-primary hover:bg-blue-700 text-white"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      navigate(`/prospects/${business.id}`);
+                    }}
+                  >
                     <Target className="w-3 h-3 mr-1" />
-                    Pitch
+                    View
                   </Button>
                 </div>
               </CardContent>

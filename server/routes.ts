@@ -162,17 +162,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Template operations
+  // Templates Management Endpoints
   app.get("/api/templates", async (req, res) => {
     try {
       const templates = await storage.getTemplates();
       res.json(templates);
     } catch (error) {
+      console.error("Error fetching templates:", error);
       res.status(500).json({ error: "Failed to fetch templates" });
     }
   });
 
-  // Activity operations
+  app.post("/api/templates", async (req, res) => {
+    try {
+      const template = await storage.createTemplate(req.body);
+      res.json(template);
+    } catch (error) {
+      console.error("Error creating template:", error);
+      res.status(500).json({ error: "Failed to create template" });
+    }
+  });
+
+  // TODO: Implement update and delete methods in storage
+  // app.put("/api/templates/:id", async (req, res) => {
+  //   try {
+  //     const id = parseInt(req.params.id);
+  //     const template = await storage.updateTemplate(id, req.body);
+  //     res.json(template);
+  //   } catch (error) {
+  //     console.error("Error updating template:", error);
+  //     res.status(500).json({ error: "Failed to update template" });
+  //   }
+  // });
+
+  // app.delete("/api/templates/:id", async (req, res) => {
+  //   try {
+  //     const id = parseInt(req.params.id);
+  //     await storage.deleteTemplate(id);
+  //     res.status(204).send();
+  //   } catch (error) {
+  //     console.error("Error deleting template:", error);
+  //     res.status(500).json({ error: "Failed to delete template" });
+  //   }
+  // });
+
+  // Activities endpoints
   app.get("/api/activities", async (req, res) => {
     try {
       const limit = req.query.limit ? parseInt(req.query.limit as string) : undefined;
@@ -180,6 +214,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(activities);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch activities" });
+    }
+  });
+
+  app.post("/api/activities", async (req, res) => {
+    try {
+      const activity = await storage.createActivity(req.body);
+      res.json(activity);
+    } catch (error) {
+      console.error("Error creating activity:", error);
+      res.status(500).json({ error: "Failed to create activity" });
     }
   });
 

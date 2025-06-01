@@ -126,7 +126,8 @@ export default function Dashboard() {
               <a href="/prospects" className="text-gray-600 hover:text-gray-900">Prospects</a>
               <a href="/inbox" className="text-gray-600 hover:text-gray-900">Inbox</a>
               <a href="/scheduling" className="text-gray-600 hover:text-gray-900">Scheduling</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Templates</a>
+              <a href="/clients" className="text-gray-600 hover:text-gray-900">Clients</a>
+              <a href="/templates" className="text-gray-600 hover:text-gray-900">Templates</a>
               <a href="#" className="text-gray-600 hover:text-gray-900">Analytics</a>
             </div>
           </div>

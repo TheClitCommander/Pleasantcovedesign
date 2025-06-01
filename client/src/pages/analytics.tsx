@@ -71,6 +71,8 @@ export default function Analytics() {
               <a href="/prospects" className="text-gray-600 hover:text-gray-900">Prospects</a>
               <a href="/inbox" className="text-gray-600 hover:text-gray-900">Inbox</a>
               <a href="/scheduling" className="text-gray-600 hover:text-gray-900">Scheduling</a>
+              <a href="/clients" className="text-gray-600 hover:text-gray-900">Clients</a>
+              <a href="/templates" className="text-gray-600 hover:text-gray-900">Templates</a>
               <a href="/analytics" className="text-primary border-b-2 border-primary pb-2 font-medium">Analytics</a>
             </div>
           </div>

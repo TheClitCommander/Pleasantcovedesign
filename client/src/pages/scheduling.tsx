@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Calendar, momentLocalizer, Event, View } from "react-big-calendar";
 import moment from "moment";
@@ -79,8 +79,11 @@ export default function Scheduling() {
   });
   const [draggedLead, setDraggedLead] = useState<Business | null>(null);
   const [draggedEvent, setDraggedEvent] = useState<CalendarEvent | null>(null);
+  const [schedulingLead, setSchedulingLead] = useState<Business | null>(null);
+  const draggedLeadRef = useRef<Business | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
 
   // Fetch pending leads
   const { data: pendingLeads = [], isLoading: loadingLeads } = useQuery({
@@ -331,6 +334,7 @@ export default function Scheduling() {
   // Handle drag start for pending leads
   const handleDragStart = (lead: Business) => {
     setDraggedLead(lead);
+    draggedLeadRef.current = lead; // Store in ref as well
     setDraggedEvent(null);
   };
 
@@ -745,8 +749,8 @@ export default function Scheduling() {
 
   if (loadingLeads || loadingSchedule || loadingAvailability || loadingAppointments || loadingBlocked) {
     return (
-      <div className="flex items-center justify-center h-96">
-        <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin" />
       </div>
     );
   }
@@ -768,8 +772,9 @@ export default function Scheduling() {
               <a href="/prospects" className="text-gray-600 hover:text-gray-900">Prospects</a>
               <a href="/inbox" className="text-gray-600 hover:text-gray-900">Inbox</a>
               <a href="/scheduling" className="text-primary border-b-2 border-primary pb-2 font-medium">Scheduling</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Templates</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Analytics</a>
+              <a href="/clients" className="text-gray-600 hover:text-gray-900">Clients</a>
+              <a href="/templates" className="text-gray-600 hover:text-gray-900">Templates</a>
+              <a href="/analytics" className="text-gray-600 hover:text-gray-900">Analytics</a>
             </div>
           </div>
         </div>
@@ -819,7 +824,6 @@ export default function Scheduling() {
                         key={lead.id}
                         draggable
                         onDragStart={() => handleDragStart(lead)}
-                        onDragEnd={() => setDraggedLead(null)}
                         className={`p-3 bg-gray-50 rounded-lg cursor-move hover:bg-gray-100 transition-colors ${
                           draggedLead?.id === lead.id ? 'opacity-50' : ''
                         }`}
@@ -925,7 +929,9 @@ export default function Scheduling() {
                   }}
                   onDrop={(e) => {
                     e.preventDefault();
-                    if (!draggedLead) return;
+                    console.log('Drop event fired, draggedLead:', draggedLead, 'ref:', draggedLeadRef.current);
+                    
+                    if (!draggedLeadRef.current) return;
                     
                     // Find which date was dropped on
                     let dropDate = date;
@@ -976,6 +982,10 @@ export default function Scheduling() {
                     
                     // Set the date for scheduling
                     setQuickScheduleDate(dropDate);
+                    
+                    // Store the lead being scheduled
+                    console.log('Setting schedulingLead:', draggedLeadRef.current);
+                    setSchedulingLead(draggedLeadRef.current);
                     
                     // Open the quick schedule modal
                     setShowQuickScheduleModal(true);
@@ -1206,9 +1216,16 @@ export default function Scheduling() {
           <BlockDateModal />
           
           {/* Quick Schedule Modal - shown after drag and drop */}
+          {/* Force reload - updated button layout */}
           <Dialog open={showQuickScheduleModal} onOpenChange={(open) => {
+            console.log('Quick schedule modal change:', { open, schedulingLead, draggedLead });
             setShowQuickScheduleModal(open);
-            if (!open) setDraggedLead(null);
+            if (!open) {
+              setDraggedLead(null);
+              draggedLeadRef.current = null; // Clear ref
+              setSchedulingLead(null);
+              setSelectedTime(null);
+            }
           }}>
             <DialogContent className="max-w-sm">
               <DialogHeader>
@@ -1217,7 +1234,8 @@ export default function Scheduling() {
               <div className="space-y-4 py-4">
                 <div>
                   <Label className="text-sm text-gray-600">Scheduling for:</Label>
-                  <p className="font-medium">{draggedLead?.name}</p>
+                  <p className="font-medium">{schedulingLead?.name || 'Unknown Lead'}</p>
+                  {!schedulingLead && <p className="text-red-500 text-sm">Error: No lead selected</p>}
                   <p className="text-sm text-gray-500">
                     {moment(quickScheduleDate).format('dddd, MMMM D, YYYY')}
                   </p>
@@ -1225,87 +1243,112 @@ export default function Scheduling() {
                 
                 <div className="space-y-2">
                   <Button
-                    className="w-full justify-start"
-                    variant="outline"
+                    className={`w-full justify-start ${selectedTime === '08:30' ? 'ring-2 ring-blue-500' : ''}`}
+                    variant={selectedTime === '08:30' ? 'default' : 'outline'}
                     size="lg"
-                    onClick={() => {
-                      if (!draggedLead) return;
-                      const datetime = moment(quickScheduleDate)
-                        .hour(8)
-                        .minute(30)
-                        .second(0)
-                        .toISOString();
-                      
-                      // Check availability
-                      if (!isSlotAvailable(moment(datetime).toDate())) {
-                        toast({
-                          title: "Slot Unavailable",
-                          description: "8:30 AM is already booked.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      
-                      scheduleMutation.mutate({
-                        businessId: draggedLead.id,
-                        datetime,
-                      });
-                      
-                      setShowQuickScheduleModal(false);
-                      setDraggedLead(null);
-                    }}
+                    onClick={() => setSelectedTime('08:30')}
                   >
                     <Clock className="mr-2 h-5 w-5" />
                     8:30 AM
                   </Button>
                   
                   <Button
-                    className="w-full justify-start"
-                    variant="outline"
+                    className={`w-full justify-start ${selectedTime === '09:00' ? 'ring-2 ring-blue-500' : ''}`}
+                    variant={selectedTime === '09:00' ? 'default' : 'outline'}
                     size="lg"
-                    onClick={() => {
-                      if (!draggedLead) return;
-                      const datetime = moment(quickScheduleDate)
-                        .hour(9)
-                        .minute(0)
-                        .second(0)
-                        .toISOString();
-                      
-                      // Check availability
-                      if (!isSlotAvailable(moment(datetime).toDate())) {
-                        toast({
-                          title: "Slot Unavailable",
-                          description: "9:00 AM is already booked.",
-                          variant: "destructive",
-                        });
-                        return;
-                      }
-                      
-                      scheduleMutation.mutate({
-                        businessId: draggedLead.id,
-                        datetime,
-                      });
-                      
-                      setShowQuickScheduleModal(false);
-                      setDraggedLead(null);
-                    }}
+                    onClick={() => setSelectedTime('09:00')}
                   >
                     <Clock className="mr-2 h-5 w-5" />
                     9:00 AM
                   </Button>
                 </div>
+                
+                {/* Show selected time confirmation */}
+                {selectedTime && (
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm text-blue-700">
+                      Selected time: <strong>{selectedTime} AM</strong>
+                    </p>
+                  </div>
+                )}
+                
+                {/* Buttons directly in content area */}
+                <div className="flex justify-between gap-3 pt-4 border-t">
+                  <Button 
+                    type="button"
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => {
+                      console.log('Cancel clicked');
+                      setShowQuickScheduleModal(false);
+                      setDraggedLead(null);
+                      draggedLeadRef.current = null; // Clear ref
+                      setSchedulingLead(null);
+                      setSelectedTime(null);
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="default"
+                    className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={!selectedTime || scheduleMutation.isPending}
+                    onClick={() => {
+                      console.log('Save clicked', { schedulingLead, selectedTime, quickScheduleDate });
+                      
+                      if (!schedulingLead || !selectedTime) {
+                        console.error('Missing required data:', { schedulingLead, selectedTime });
+                        toast({
+                          title: "Error",
+                          description: "Missing scheduling data. Please try again.",
+                          variant: "destructive",
+                        });
+                        return;
+                      }
+                      
+                      const [hour, minute] = selectedTime.split(':').map(Number);
+                      const datetime = moment(quickScheduleDate)
+                        .hour(hour)
+                        .minute(minute)
+                        .second(0)
+                        .toISOString();
+                      
+                      console.log('Scheduling appointment:', { 
+                        businessId: schedulingLead.id, 
+                        datetime,
+                        formattedTime: moment(datetime).format('YYYY-MM-DD HH:mm:ss')
+                      });
+                      
+                      scheduleMutation.mutate({
+                        businessId: schedulingLead.id,
+                        datetime,
+                      }, {
+                        onSuccess: () => {
+                          console.log('Schedule mutation successful');
+                          setShowQuickScheduleModal(false);
+                          setDraggedLead(null);
+                          draggedLeadRef.current = null; // Clear ref
+                          setSchedulingLead(null);
+                          setSelectedTime(null);
+                        },
+                        onError: (error) => {
+                          console.error('Schedule mutation failed:', error);
+                        }
+                      });
+                    }}
+                  >
+                    {scheduleMutation.isPending ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Scheduling...
+                      </>
+                    ) : (
+                      'Save Appointment'
+                    )}
+                  </Button>
+                </div>
               </div>
-              <DialogFooter>
-                <Button 
-                  variant="ghost" 
-                  onClick={() => {
-                    setShowQuickScheduleModal(false);
-                    setDraggedLead(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-              </DialogFooter>
             </DialogContent>
           </Dialog>
           

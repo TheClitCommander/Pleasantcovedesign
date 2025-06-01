@@ -16,12 +16,17 @@ import BusinessOverview from "@/pages/business-overview";
 import Scheduling from "@/pages/scheduling";
 import Analytics from "@/pages/analytics";
 import NotFound from "@/pages/not-found";
+import BusinessDetail from "@/pages/business-detail";
+import Clients from "@/pages/clients";
+import ClientProfile from "@/pages/client-profile";
+import Templates from "@/pages/templates";
 
 function Router() {
   return (
     <Switch>
       <Route path="/" component={Dashboard} />
       <Route path="/prospects" component={Prospects} />
+      <Route path="/prospects/:id" component={BusinessDetail} />
       <Route path="/inbox" component={Inbox} />
       <Route path="/leads" component={Leads} />
       <Route path="/campaigns" component={Campaigns} />
@@ -32,6 +37,9 @@ function Router() {
       <Route path="/notifications" component={Notifications} />
       <Route path="/customer-site" component={CustomerSite} />
       <Route path="/business/:id" component={BusinessOverview} />
+      <Route path="/clients" component={Clients} />
+      <Route path="/clients/:id" component={ClientProfile} />
+      <Route path="/templates" component={Templates} />
       <Route component={NotFound} />
     </Switch>
   );
