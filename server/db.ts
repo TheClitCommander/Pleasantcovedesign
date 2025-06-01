@@ -2,131 +2,121 @@ import Database from 'better-sqlite3';
 import { drizzle } from 'drizzle-orm/better-sqlite3';
 import * as schema from "@shared/schema";
 
-// Use SQLite for easy local development
-const sqlite = new Database('websitewizard.db');
+const dbPath = process.env.DATABASE_URL || "websitewizard.db";
+const sqlite = new Database(dbPath);
+
+// Ensure foreign keys are enforced
+sqlite.pragma("foreign_keys = ON");
+
 export const db = drizzle(sqlite, { schema });
 
-// Create tables if they don't exist
-const createTables = () => {
-  // Create businesses table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS businesses (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      email TEXT,
-      phone TEXT NOT NULL,
-      address TEXT NOT NULL,
-      city TEXT NOT NULL,
-      state TEXT NOT NULL,
-      business_type TEXT NOT NULL,
-      stage TEXT NOT NULL DEFAULT 'scraped',
-      website TEXT,
-      notes TEXT DEFAULT '',
-      score INTEGER DEFAULT 0,
-      priority TEXT DEFAULT 'medium',
-      tags TEXT,
-      last_contact_date DATETIME,
-      scheduled_time DATETIME,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Create campaigns table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS campaigns (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      business_type TEXT NOT NULL,
-      status TEXT NOT NULL DEFAULT 'active',
-      total_contacts INTEGER NOT NULL DEFAULT 0,
-      sent_count INTEGER NOT NULL DEFAULT 0,
-      response_count INTEGER NOT NULL DEFAULT 0,
-      message TEXT NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Create activities table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS activities (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL,
-      description TEXT NOT NULL,
-      business_id INTEGER REFERENCES businesses(id),
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Create templates table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS templates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      business_type TEXT NOT NULL,
-      description TEXT NOT NULL,
-      usage_count INTEGER NOT NULL DEFAULT 0,
-      preview_url TEXT,
-      features TEXT
-    )
-  `);
-
-  // Create availability_config table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS availability_config (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      day_of_week INTEGER NOT NULL,
-      start_time TEXT NOT NULL,
-      end_time TEXT NOT NULL,
-      is_active INTEGER NOT NULL DEFAULT 1,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Create blocked_dates table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS blocked_dates (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      date TEXT NOT NULL,
-      start_time TEXT,
-      end_time TEXT,
-      reason TEXT,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-
-  // Create appointments table
-  sqlite.exec(`
-    CREATE TABLE IF NOT EXISTS appointments (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      business_id INTEGER NOT NULL REFERENCES businesses(id),
-      datetime DATETIME NOT NULL,
-      status TEXT NOT NULL DEFAULT 'confirmed',
-      notes TEXT,
-      is_auto_scheduled INTEGER NOT NULL DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-};
-
 // Initialize tables
-createTables();
+const initQuery = `
+CREATE TABLE IF NOT EXISTS businesses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  email TEXT,
+  phone TEXT,
+  website TEXT,
+  address TEXT,
+  city TEXT,
+  state TEXT,
+  tags TEXT,
+  lead_temperature TEXT DEFAULT 'cold',
+  stage TEXT DEFAULT 'scraped',
+  contact_stage TEXT DEFAULT 'not_contacted',
+  interested INTEGER DEFAULT 0,
+  no_answer INTEGER DEFAULT 0,
+  locked INTEGER DEFAULT 0,
+  contacted INTEGER DEFAULT 0,
+  notes TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  appointment_datetime TEXT,
+  appointment_status TEXT,
+  scraped_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 
-// Add scheduled_time column if it doesn't exist
+CREATE TABLE IF NOT EXISTS activities (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id INTEGER,
+  type TEXT NOT NULL,
+  description TEXT NOT NULL,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS templates (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  business_type TEXT NOT NULL,
+  description TEXT NOT NULL,
+  usage_count INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS campaigns (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL,
+  status TEXT DEFAULT 'draft',
+  scheduled_for TEXT,
+  sent_count INTEGER DEFAULT 0,
+  opened_count INTEGER DEFAULT 0,
+  clicked_count INTEGER DEFAULT 0,
+  template_id INTEGER,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (template_id) REFERENCES templates(id)
+);
+
+CREATE TABLE IF NOT EXISTS campaign_businesses (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  campaign_id INTEGER NOT NULL,
+  business_id INTEGER NOT NULL,
+  status TEXT DEFAULT 'pending',
+  sent_at TEXT,
+  opened_at TEXT,
+  clicked_at TEXT,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
+  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS appointments (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id INTEGER NOT NULL,
+  datetime TEXT NOT NULL,
+  status TEXT DEFAULT 'confirmed',
+  notes TEXT,
+  is_auto_scheduled INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS progress_entries (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  business_id INTEGER NOT NULL,
+  stage TEXT NOT NULL,
+  image_url TEXT NOT NULL,
+  date TEXT NOT NULL,
+  notes TEXT,
+  publicly_visible INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (business_id) REFERENCES businesses(id) ON DELETE CASCADE
+);
+`;
+
 try {
-  sqlite.exec(`ALTER TABLE businesses ADD COLUMN scheduled_time DATETIME`);
-} catch (e) {
-  // Column already exists
+  sqlite.exec(initQuery);
+  console.log("✅ SQLite database initialized at", dbPath);
+} catch (error) {
+  console.error("❌ Failed to initialize database:", error);
+  throw error;
 }
-
-// Add appointmentStatus column if it doesn't exist
-try {
-  sqlite.exec(`ALTER TABLE businesses ADD COLUMN appointment_status TEXT DEFAULT 'confirmed'`);
-} catch (e) {
-  // Column already exists
-}
-
-console.log('✅ SQLite database initialized at websitewizard.db');
 
 // For compatibility with existing code
 export const pool = { query: () => { throw new Error('Use db instead of pool'); } };

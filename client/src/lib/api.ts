@@ -220,4 +220,45 @@ export const api = {
     const res = await apiRequest("GET", `/api/businesses/${businessId}/appointments`);
     return res.json();
   },
+
+  // Progress entries
+  getBusinessProgress: (businessId: number) =>
+    apiRequest("GET", `/businesses/${businessId}/progress`).then(r => r.json()),
+  
+  getPublicProgress: (identifier: string) =>
+    apiRequest("GET", `/progress/public/${identifier}`).then(r => r.json()),
+  
+  createProgressEntry: (businessId: number, data: {
+    stage: string;
+    imageUrl: string;
+    date: string;
+    notes?: string;
+    publiclyVisible?: boolean;
+    paymentRequired?: boolean;
+    paymentAmount?: number;
+    paymentStatus?: 'pending' | 'partial' | 'paid';
+    paymentNotes?: string;
+    stripeLink?: string;
+  }) =>
+    apiRequest("POST", `/businesses/${businessId}/progress`, data).then(r => r.json()),
+  
+  deleteProgressEntry: (entryId: number) =>
+    apiRequest("DELETE", `/progress/${entryId}`).then(r => r.json()),
+  
+  updateProgressEntry: (entryId: number, data: {
+    stage?: string;
+    imageUrl?: string;
+    date?: string;
+    notes?: string;
+    publiclyVisible?: boolean;
+    paymentRequired?: boolean;
+    paymentAmount?: number;
+    paymentStatus?: 'pending' | 'partial' | 'paid';
+    paymentNotes?: string;
+    stripeLink?: string;
+  }) =>
+    apiRequest("PATCH", `/progress/${entryId}`, data).then(r => r.json()),
+  
+  updateProgressVisibility: (entryId: number, publiclyVisible: boolean) =>
+    apiRequest("PATCH", `/progress/${entryId}`, { publiclyVisible }).then(r => r.json()),
 };

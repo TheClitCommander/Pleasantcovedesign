@@ -1,6 +1,7 @@
 import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
+import { InferSelectModel, InferInsertModel, sql } from "drizzle-orm";
 
 export const businesses = sqliteTable("businesses", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -20,6 +21,16 @@ export const businesses = sqliteTable("businesses", {
   lastContactDate: text("last_contact_date"),
   scheduledTime: text("scheduled_time"),
   appointmentStatus: text("appointment_status").default("confirmed"), // 'confirmed' | 'completed' | 'no-show'
+  
+  // Payment tracking
+  paymentStatus: text("payment_status").default("pending"), // 'pending' | 'partial' | 'paid' | 'overdue'
+  totalAmount: integer("total_amount").default(0), // Amount in cents
+  paidAmount: integer("paid_amount").default(0), // Amount in cents
+  stripeCustomerId: text("stripe_customer_id"),
+  stripePaymentLinkId: text("stripe_payment_link_id"),
+  lastPaymentDate: text("last_payment_date"),
+  paymentNotes: text("payment_notes"),
+  
   createdAt: text("created_at").default("CURRENT_TIMESTAMP"),
 });
 
@@ -82,6 +93,26 @@ export const appointments = sqliteTable("appointments", {
   updatedAt: text("updated_at").default("CURRENT_TIMESTAMP"),
 });
 
+export const progressEntries = sqliteTable("progress_entries", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  businessId: integer("business_id").references(() => businesses.id, { onDelete: "cascade" }).notNull(),
+  stage: text("stage").notNull(),
+  imageUrl: text("image_url").notNull(),
+  date: text("date").notNull(),
+  notes: text("notes"),
+  publiclyVisible: integer("publicly_visible", { mode: "boolean" }).default(true),
+  
+  // Payment metadata fields
+  paymentRequired: integer("payment_required", { mode: "boolean" }).default(false),
+  paymentAmount: integer("payment_amount"), // Amount in cents (e.g., 25000 = $250.00)
+  paymentStatus: text("payment_status").$type<'pending' | 'partial' | 'paid'>(),
+  paymentNotes: text("payment_notes"),
+  stripeLink: text("stripe_link"),
+  
+  createdAt: text("created_at").default(sql`CURRENT_TIMESTAMP`),
+  updatedAt: text("updated_at").default(sql`CURRENT_TIMESTAMP`),
+});
+
 // Insert schemas
 export const insertBusinessSchema = createInsertSchema(businesses).omit({
   id: true,
@@ -118,6 +149,12 @@ export const insertAppointmentSchema = createInsertSchema(appointments).omit({
   updatedAt: true,
 });
 
+export const insertProgressEntrySchema = createInsertSchema(progressEntries).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 // Types
 export type Business = typeof businesses.$inferSelect;
 export type InsertBusiness = z.infer<typeof insertBusinessSchema>;
@@ -133,6 +170,8 @@ export type BlockedDate = typeof blockedDates.$inferSelect;
 export type InsertBlockedDate = z.infer<typeof insertBlockedDateSchema>;
 export type Appointment = typeof appointments.$inferSelect;
 export type InsertAppointment = z.infer<typeof insertAppointmentSchema>;
+export type ProgressEntry = InferSelectModel<typeof progressEntries>;
+export type InsertProgressEntry = InferInsertModel<typeof progressEntries>;
 
 // Pipeline stages
 export const PIPELINE_STAGES = ["scraped", "scheduled", "contacted", "interested", "sold", "delivered"] as const;

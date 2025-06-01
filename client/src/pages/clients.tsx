@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
-import { Building2, Calendar, MessageSquare, ChevronRight, Users, Loader2 } from "lucide-react";
+import { Building2, Calendar, MessageSquare, ChevronRight, Users, Loader2, DollarSign, CheckCircle, AlertCircle, Phone, Mail, MapPin } from "lucide-react";
 import type { Business } from "@shared/schema";
 import moment from "moment";
 
@@ -135,14 +135,19 @@ export default function Clients() {
                     {/* Contact Info */}
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center text-gray-600">
-                        <MessageSquare className="h-4 w-4 mr-2" />
+                        <Phone className="h-4 w-4 mr-2" />
                         {client.phone}
                       </div>
                       {client.email && (
-                        <div className="text-gray-600 truncate">
+                        <div className="flex items-center text-gray-600">
+                          <Mail className="h-4 w-4 mr-2" />
                           {client.email}
                         </div>
                       )}
+                      <div className="flex items-center text-gray-600">
+                        <MapPin className="h-4 w-4 mr-2" />
+                        {client.city}, {client.state}
+                      </div>
                     </div>
 
                     {/* Tags */}
@@ -153,6 +158,33 @@ export default function Clients() {
                             {tag.trim()}
                           </Badge>
                         ))}
+                      </div>
+                    )}
+
+                    {/* Payment Status */}
+                    {client.totalAmount && client.totalAmount > 0 && (
+                      <div className="pt-2 border-t">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center text-sm">
+                            <DollarSign className="h-4 w-4 mr-2 text-gray-500" />
+                            <span className="text-gray-600">
+                              ${((client.paidAmount || 0) / 100).toFixed(0)} / ${(client.totalAmount / 100).toFixed(0)}
+                            </span>
+                          </div>
+                          <Badge
+                            variant={
+                              client.paymentStatus === 'paid' ? 'default' :
+                              client.paymentStatus === 'partial' ? 'secondary' :
+                              client.paymentStatus === 'overdue' ? 'destructive' :
+                              'outline'
+                            }
+                            className="text-xs"
+                          >
+                            {client.paymentStatus === 'paid' && <CheckCircle className="h-3 w-3 mr-1" />}
+                            {client.paymentStatus === 'overdue' && <AlertCircle className="h-3 w-3 mr-1" />}
+                            {client.paymentStatus || 'pending'}
+                          </Badge>
+                        </div>
                       </div>
                     )}
 

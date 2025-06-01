@@ -15,10 +15,14 @@ import { useToast } from "@/hooks/use-toast";
 import { 
   Building2, User, Phone, Mail, MapPin, Calendar, MessageSquare, 
   FileText, Briefcase, Receipt, StickyNote, Send, Clock, CheckCircle2,
-  XCircle, Loader2, ChevronLeft, ArrowRight, Upload, Download, Edit, Activity
+  XCircle, Loader2, ChevronLeft, ArrowRight, Upload, Download, Edit, Activity,
+  Image, ExternalLink, Trash2
 } from "lucide-react";
 import type { Business, Activity as ActivityType } from "@shared/schema";
 import moment from "moment";
+import { ProgressGallery } from "@/components/ProgressGallery";
+import { ProgressUploader } from "@/components/ProgressUploader";
+import { PaymentManager } from "@/components/PaymentManager";
 
 const PROJECT_MILESTONES = [
   { id: 'branding', label: 'Branding', description: 'Logo and brand identity' },
@@ -42,6 +46,10 @@ export default function ClientProfile() {
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [projectMilestones, setProjectMilestones] = useState<Record<string, boolean>>({});
   const [editingNotes, setEditingNotes] = useState(false);
+  const [showProgressUploader, setShowProgressUploader] = useState(false);
+
+  // For demo purposes, hardcode admin status
+  const isAdmin = true; // In production, this would come from auth context
 
   // Fetch client data
   const { data: client, isLoading } = useQuery({
@@ -60,6 +68,13 @@ export default function ClientProfile() {
   const { data: appointments = [] } = useQuery({
     queryKey: ["/api/businesses", id, "appointments"],
     queryFn: () => api.getBusinessAppointments(businessId),
+    enabled: !!businessId,
+  });
+
+  // Fetch progress entries from API
+  const { data: progressEntries = [], refetch: refetchProgress, isLoading: isLoadingProgress } = useQuery({
+    queryKey: ["/api/businesses", id, "progress"],
+    queryFn: () => api.getBusinessProgress(businessId),
     enabled: !!businessId,
   });
 
@@ -102,6 +117,25 @@ export default function ClientProfile() {
       toast({
         title: "Error",
         description: "Failed to update appointment status.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Delete progress entry mutation
+  const deleteProgressMutation = useMutation({
+    mutationFn: (entryId: number) => api.deleteProgressEntry(entryId),
+    onSuccess: () => {
+      refetchProgress();
+      toast({
+        title: "Progress removed",
+        description: "The progress entry has been deleted.",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to delete progress entry.",
         variant: "destructive",
       });
     },
@@ -233,7 +267,7 @@ export default function ClientProfile() {
             <TabsTrigger value="bookings">Bookings</TabsTrigger>
             <TabsTrigger value="conversations">Messages</TabsTrigger>
             <TabsTrigger value="progress">Progress</TabsTrigger>
-            <TabsTrigger value="receipts">Receipts</TabsTrigger>
+            <TabsTrigger value="receipts">Payments</TabsTrigger>
             <TabsTrigger value="notes">Notes</TabsTrigger>
           </TabsList>
 
@@ -458,78 +492,68 @@ export default function ClientProfile() {
 
           {/* Project Progress Tab */}
           <TabsContent value="progress" className="mt-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Project Milestones</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-6">
-                  {PROJECT_MILESTONES.map((milestone, idx) => (
-                    <div key={milestone.id} className="flex items-start space-x-4">
-                      <div className="flex items-center h-6">
-                        <Checkbox
-                          checked={projectMilestones[milestone.id] || false}
-                          onCheckedChange={(checked) => {
-                            const newMilestones = { ...projectMilestones, [milestone.id]: !!checked };
-                            setProjectMilestones(newMilestones);
-                            // You could save this to the database if needed
-                          }}
-                        />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center">
-                          <h4 className="font-medium">{milestone.label}</h4>
-                          {idx < PROJECT_MILESTONES.length - 1 && (
-                            <ArrowRight className="h-4 w-4 text-gray-400 ml-2" />
-                          )}
-                        </div>
-                        <p className="text-sm text-gray-600">{milestone.description}</p>
-                      </div>
-                      {projectMilestones[milestone.id] && (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="mt-6 p-4 bg-gray-50 rounded-lg">
-                  <h4 className="font-medium mb-2">Progress Summary</h4>
-                  <div className="w-full bg-gray-200 rounded-full h-2">
-                    <div 
-                      className="bg-blue-500 h-2 rounded-full transition-all"
-                      style={{ 
-                        width: `${(Object.values(projectMilestones).filter(Boolean).length / PROJECT_MILESTONES.length) * 100}%` 
+            {/* Admin Upload Section - Show when admin */}
+            {isAdmin && (
+              <div className="mb-6">
+                {showProgressUploader ? (
+                  <div className="space-y-4">
+                    <ProgressUploader 
+                      businessId={businessId}
+                      onSuccess={() => {
+                        refetchProgress();
+                        setShowProgressUploader(false);
                       }}
                     />
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowProgressUploader(false)}
+                      className="w-full"
+                    >
+                      Cancel
+                    </Button>
                   </div>
-                  <p className="text-sm text-gray-600 mt-2">
-                    {Object.values(projectMilestones).filter(Boolean).length} of {PROJECT_MILESTONES.length} milestones completed
-                  </p>
+                ) : (
+                  <Button
+                    onClick={() => setShowProgressUploader(true)}
+                    className="w-full"
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Add Progress Update
+                  </Button>
+                )}
+              </div>
+            )}
+
+            {/* Progress Gallery */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle>Visual Progress</CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => window.open(`/progress/public/${businessId}`, '_blank')}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Public View
+                  </Button>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <ProgressGallery 
+                  entries={progressEntries} 
+                  clientName={client.name}
+                  onDelete={isAdmin ? (entryId) => deleteProgressMutation.mutate(entryId) : undefined}
+                  isAdmin={isAdmin}
+                  isLoading={isLoadingProgress}
+                />
               </CardContent>
             </Card>
           </TabsContent>
 
           {/* Receipts Tab */}
           <TabsContent value="receipts" className="mt-6">
-            <Card>
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>Receipts & Invoices</CardTitle>
-                  <Button size="sm" variant="outline">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Receipt
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12 text-gray-500">
-                  <Receipt className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-                  <p>No receipts uploaded yet</p>
-                  <p className="text-sm mt-1">Upload receipts to keep track of payments</p>
-                </div>
-              </CardContent>
-            </Card>
+            <PaymentManager business={client} />
           </TabsContent>
 
           {/* Internal Notes Tab */}

@@ -4,14 +4,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Bell, Globe, Upload, Plus, Eye, Calendar, Check, ExternalLink, ArrowRight, Settings, User, LogOut, MessageSquare, Phone, Mail } from "lucide-react";
+import { Bell, Globe, Upload, Plus, Eye, Calendar, Check, ExternalLink, ArrowRight, Settings, User, LogOut, MessageSquare, Phone, Mail, Users, Target, DollarSign, Clock, CheckCircle2, AlertCircle, BarChart3 } from "lucide-react";
 import { useNotifications } from "@/hooks/use-notifications";
 import PipelineBoard from "@/components/pipeline-board";
 import ImportModal from "@/components/import-modal";
 import CampaignCard from "@/components/campaign-card";
 import BusinessTypeCard from "@/components/business-type-card";
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
+import moment from "moment";
 
 export default function Dashboard() {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -34,6 +35,11 @@ export default function Dashboard() {
   const { data: activities } = useQuery({
     queryKey: ["/api/activities"],
     queryFn: () => api.getActivities(10),
+  });
+
+  const { data: businessesData = [] } = useQuery({
+    queryKey: ["/api/businesses"],
+    queryFn: api.getBusinesses,
   });
 
   const businessTypes = [
@@ -90,6 +96,24 @@ export default function Dashboard() {
   const handleBusinessTypeClick = (businessType: string) => {
     setLocation(`/prospects?type=${businessType}`);
   };
+
+  // Stats calculations
+  const todayStats = stats?.today || { newLeads: 0, responses: 0, callsScheduled: 0, delivered: 0 };
+  const activeClients = businessesData.filter(b => b.stage === 'sold' || b.stage === 'delivered').length;
+  const scheduledMeetings = businessesData.filter(b => 
+    b.scheduledTime && moment(b.scheduledTime).isAfter(moment())
+  ).length;
+  
+  // Payment stats
+  const paymentStats = businessesData.reduce((acc, b) => {
+    if (b.totalAmount && b.totalAmount > 0) {
+      acc.totalDue += b.totalAmount;
+      acc.totalPaid += b.paidAmount || 0;
+      if (b.paymentStatus === 'paid') acc.paidCount++;
+      if (b.paymentStatus === 'overdue') acc.overdueCount++;
+    }
+    return acc;
+  }, { totalDue: 0, totalPaid: 0, paidCount: 0, overdueCount: 0 });
 
   if (statsLoading) {
     return (
@@ -512,6 +536,100 @@ export default function Dashboard() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Metrics Grid */}
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0 p-3 bg-blue-100 rounded-lg">
+                  <Users className="h-6 w-6 text-blue-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Total Leads</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats?.totalLeads || 0}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0 p-3 bg-green-100 rounded-lg">
+                  <Target className="h-6 w-6 text-green-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Active Clients</p>
+                  <p className="text-2xl font-bold text-gray-900">{activeClients}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className="flex-shrink-0 p-3 bg-purple-100 rounded-lg">
+                  <Calendar className="h-6 w-6 text-purple-600" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Scheduled</p>
+                  <p className="text-2xl font-bold text-gray-900">{scheduledMeetings}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center space-x-3">
+                <div className={`flex-shrink-0 p-3 rounded-lg ${
+                  paymentStats.overdueCount > 0 ? 'bg-red-100' : 'bg-green-100'
+                }`}>
+                  <DollarSign className={`h-6 w-6 ${
+                    paymentStats.overdueCount > 0 ? 'text-red-600' : 'text-green-600'
+                  }`} />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-600">Revenue</p>
+                  <p className="text-2xl font-bold text-gray-900">
+                    ${(paymentStats.totalPaid / 100).toFixed(0)}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    of ${(paymentStats.totalDue / 100).toFixed(0)}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Payment Overview - if there are any overdue payments */}
+        {paymentStats.overdueCount > 0 && (
+          <Card className="border-red-200 bg-red-50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="h-5 w-5 text-red-600" />
+                  <div>
+                    <p className="font-medium text-red-900">
+                      {paymentStats.overdueCount} Overdue Payment{paymentStats.overdueCount > 1 ? 's' : ''}
+                    </p>
+                    <p className="text-sm text-red-700">
+                      ${((paymentStats.totalDue - paymentStats.totalPaid) / 100).toFixed(0)} outstanding
+                    </p>
+                  </div>
+                </div>
+                <Link href="/clients">
+                  <Button variant="outline" size="sm" className="border-red-300 text-red-700 hover:bg-red-100">
+                    View Clients
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />

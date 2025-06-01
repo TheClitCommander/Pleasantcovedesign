@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request, Response, NextFunction } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { botIntegration } from "./bot-integration";
@@ -10,8 +10,49 @@ import { eq, desc, and, ne } from "drizzle-orm";
 import { db } from "./db";
 import * as schema from "@shared/schema";
 
+// Admin authentication middleware
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "pleasantcove2024admin";
+
+// List of public API routes that don't require authentication
+const PUBLIC_API_ROUTES = [
+  "/api/progress/public",
+  "/api/scheduling/booking",
+  "/api/scheduling/slots",
+  "/api/availability",
+  "/api/blocked-dates",
+  "/api/new-lead", // Webhook for Squarespace
+];
+
+// Middleware to check admin auth
+const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
+  // Check if this is a public route
+  const isPublicRoute = PUBLIC_API_ROUTES.some(route => req.path.startsWith(route));
+  
+  if (isPublicRoute) {
+    return next();
+  }
+
+  // Check for admin token
+  const authHeader = req.headers.authorization;
+  const queryToken = req.query.token as string;
+  const providedToken = authHeader?.replace("Bearer ", "") || queryToken;
+
+  if (providedToken === ADMIN_TOKEN) {
+    return next();
+  }
+
+  // No valid token found
+  res.status(401).json({ 
+    error: "Unauthorized", 
+    message: "Admin authentication required" 
+  });
+};
+
 export async function registerRoutes(app: Express): Promise<Server> {
   
+  // Apply admin auth middleware to all API routes
+  app.use("/api", requireAdmin);
+
   // Dashboard stats
   app.get("/api/stats", async (req, res) => {
     try {
@@ -614,25 +655,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all appointments (manual and auto-scheduled)
   app.get("/api/scheduling/appointments", async (req, res) => {
     try {
-      const businesses = await storage.getBusinesses();
+      // Fetch from appointments table with business info
+      const appointmentsWithBusiness = await db.select({
+        appointment: schema.appointments,
+        business: schema.businesses,
+      })
+        .from(schema.appointments)
+        .leftJoin(schema.businesses, eq(schema.appointments.businessId, schema.businesses.id))
+        .where(ne(schema.appointments.status, 'cancelled'))
+        .orderBy(desc(schema.appointments.datetime));
       
-      // Get all businesses with scheduled times
-      const appointments = businesses
-        .filter(b => b.stage === 'scheduled' && b.scheduledTime)
-        .map(b => ({
-          id: b.id,
-          businessId: b.id,
-          businessName: b.name,
-          datetime: b.scheduledTime,
-          phone: b.phone,
-          score: b.score || 0,
-          // Determine if auto-scheduled by checking notes or source
-          isAutoScheduled: b.notes?.includes('Source: Scheduling Link') || 
-                          b.notes?.includes('Self-scheduled') || 
-                          false,
-          notes: b.notes,
-          appointmentStatus: b.appointmentStatus || 'confirmed'
-        }));
+      // Transform to expected format
+      const appointments = appointmentsWithBusiness.map(({ appointment, business }) => ({
+        id: appointment.id,
+        businessId: appointment.businessId,
+        businessName: business?.name || 'Unknown Business',
+        datetime: appointment.datetime,
+        phone: business?.phone || '',
+        score: business?.score || 0,
+        isAutoScheduled: appointment.isAutoScheduled,
+        notes: appointment.notes,
+        appointmentStatus: appointment.status,
+      }));
       
       res.json(appointments);
     } catch (error) {
@@ -1084,6 +1128,212 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Failed to fetch business appointments:", error);
       res.status(500).json({ error: "Failed to fetch appointments" });
+    }
+  });
+
+  // Progress Entry endpoints
+  app.get("/api/businesses/:id/progress", async (req, res) => {
+    const businessId = parseInt(req.params.id);
+    
+    try {
+      const entries = await db.select()
+        .from(schema.progressEntries)
+        .where(eq(schema.progressEntries.businessId, businessId))
+        .orderBy(desc(schema.progressEntries.date));
+      
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching progress entries:", error);
+      res.status(500).json({ error: "Failed to fetch progress entries" });
+    }
+  });
+
+  // Get public progress (for embed)
+  app.get("/api/progress/public/:identifier", async (req, res) => {
+    const { identifier } = req.params;
+    
+    try {
+      // First try to find by ID
+      let businessId = parseInt(identifier);
+      let business;
+      
+      if (!isNaN(businessId)) {
+        business = await db.select()
+          .from(schema.businesses)
+          .where(eq(schema.businesses.id, businessId))
+          .limit(1);
+      }
+      
+      // If not found or not a number, try by slug (name-based for now)
+      if (!business || business.length === 0) {
+        // Simple slug matching - in production you'd have a proper slug field
+        const businesses = await db.select()
+          .from(schema.businesses)
+          .all();
+        
+        business = businesses.filter(b => 
+          b.name.toLowerCase().replace(/\s+/g, '-') === identifier.toLowerCase()
+        );
+      }
+      
+      if (!business || business.length === 0) {
+        return res.status(404).json({ error: "Business not found" });
+      }
+      
+      // Get public progress entries
+      const progress = await db.select()
+        .from(schema.progressEntries)
+        .where(
+          and(
+            eq(schema.progressEntries.businessId, business[0].id),
+            eq(schema.progressEntries.publiclyVisible, true)
+          )
+        )
+        .orderBy(desc(schema.progressEntries.date));
+      
+      // Format payment amounts from cents to dollars in the response
+      const formattedProgress = progress.map(entry => ({
+        ...entry,
+        paymentAmount: entry.paymentAmount ? entry.paymentAmount : null
+      }));
+      
+      res.json({
+        businessId: business[0].id,
+        businessName: business[0].name,
+        entries: formattedProgress,
+        totalAmount: business[0].totalAmount,
+        paidAmount: business[0].paidAmount,
+        paymentStatus: business[0].paymentStatus,
+        stripePaymentLinkId: business[0].stripePaymentLinkId
+      });
+    } catch (error) {
+      console.error("Error fetching public progress:", error);
+      res.status(500).json({ error: "Failed to fetch progress" });
+    }
+  });
+
+  // Create progress entry
+  app.post("/api/businesses/:id/progress", async (req, res) => {
+    const businessId = parseInt(req.params.id);
+    const { 
+      stage, 
+      imageUrl, 
+      date, 
+      notes, 
+      publiclyVisible = true,
+      paymentRequired = false,
+      paymentAmount,
+      paymentStatus,
+      paymentNotes,
+      stripeLink
+    } = req.body;
+    
+    try {
+      const [entry] = await db.insert(schema.progressEntries)
+        .values({
+          businessId,
+          stage,
+          imageUrl,
+          date,
+          notes,
+          publiclyVisible,
+          paymentRequired,
+          paymentAmount: paymentAmount ? Math.round(paymentAmount * 100) : null, // Convert dollars to cents
+          paymentStatus,
+          paymentNotes,
+          stripeLink
+        })
+        .returning();
+      
+      // Log activity
+      await db.insert(schema.activities).values({
+        businessId,
+        type: "progress_added",
+        description: `Added progress update: ${stage}${paymentRequired ? ' (includes payment)' : ''}`
+      });
+      
+      res.json(entry);
+    } catch (error) {
+      console.error("Error creating progress entry:", error);
+      res.status(500).json({ error: "Failed to create progress entry" });
+    }
+  });
+
+  // Delete progress entry
+  app.delete("/api/progress/:id", async (req, res) => {
+    const entryId = parseInt(req.params.id);
+    
+    try {
+      // Get the entry first to log activity
+      const [entry] = await db.select()
+        .from(schema.progressEntries)
+        .where(eq(schema.progressEntries.id, entryId))
+        .limit(1);
+      
+      if (!entry) {
+        return res.status(404).json({ error: "Progress entry not found" });
+      }
+      
+      await db.delete(schema.progressEntries)
+        .where(eq(schema.progressEntries.id, entryId));
+      
+      // Log activity
+      await db.insert(schema.activities).values({
+        businessId: entry.businessId,
+        type: "progress_removed",
+        description: `Removed progress update: ${entry.stage}`
+      });
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting progress entry:", error);
+      res.status(500).json({ error: "Failed to delete progress entry" });
+    }
+  });
+
+  // Update progress entry visibility
+  app.patch("/api/progress/:id", async (req, res) => {
+    const entryId = parseInt(req.params.id);
+    const { 
+      stage, 
+      imageUrl, 
+      date, 
+      notes, 
+      publiclyVisible,
+      paymentRequired,
+      paymentAmount,
+      paymentStatus,
+      paymentNotes,
+      stripeLink
+    } = req.body;
+    
+    try {
+      const updates: any = {};
+      if (stage !== undefined) updates.stage = stage;
+      if (imageUrl !== undefined) updates.imageUrl = imageUrl;
+      if (date !== undefined) updates.date = date;
+      if (notes !== undefined) updates.notes = notes;
+      if (publiclyVisible !== undefined) updates.publiclyVisible = publiclyVisible;
+      if (paymentRequired !== undefined) updates.paymentRequired = paymentRequired;
+      if (paymentAmount !== undefined) updates.paymentAmount = paymentAmount ? Math.round(paymentAmount * 100) : null;
+      if (paymentStatus !== undefined) updates.paymentStatus = paymentStatus;
+      if (paymentNotes !== undefined) updates.paymentNotes = paymentNotes;
+      if (stripeLink !== undefined) updates.stripeLink = stripeLink;
+      updates.updatedAt = new Date().toISOString();
+      
+      const [updated] = await db.update(schema.progressEntries)
+        .set(updates)
+        .where(eq(schema.progressEntries.id, entryId))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Progress entry not found" });
+      }
+      
+      res.json(updated);
+    } catch (error) {
+      console.error("Error updating progress entry:", error);
+      res.status(500).json({ error: "Failed to update progress entry" });
     }
   });
 
