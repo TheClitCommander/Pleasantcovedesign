@@ -13,6 +13,7 @@ import { BUSINESS_TYPES } from "@shared/schema";
 
 export default function Prospects() {
   const [selectedType, setSelectedType] = useState<string>("all");
+  const [selectedSource, setSelectedSource] = useState<string>("all");
   const [searchTerm, setSearchTerm] = useState("");
   const [, navigate] = useLocation();
 
@@ -95,9 +96,10 @@ export default function Prospects() {
 
   const filteredBusinesses = businesses?.filter(business => {
     const matchesType = selectedType === "all" || business.businessType === selectedType;
+    const matchesSource = selectedSource === "all" || business.source === selectedSource;
     const matchesSearch = business.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          business.city.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesType && matchesSearch;
+    return matchesType && matchesSource && matchesSearch;
   }) || [];
 
   const getBusinessesByType = (type: string) => {
@@ -112,6 +114,26 @@ export default function Prospects() {
       case "sold": return "bg-green-100 text-green-700";
       case "delivered": return "bg-green-100 text-green-700";
       default: return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const getSourceColor = (source: string) => {
+    switch (source) {
+      case "scraped": return "bg-purple-100 text-purple-700";
+      case "acuity": return "bg-orange-100 text-orange-700";
+      case "squarespace": return "bg-indigo-100 text-indigo-700";
+      case "manual": return "bg-gray-100 text-gray-700";
+      default: return "bg-gray-100 text-gray-700";
+    }
+  };
+
+  const getSourceLabel = (source: string) => {
+    switch (source) {
+      case "scraped": return "Scraped";
+      case "acuity": return "Acuity";
+      case "squarespace": return "Squarespace";
+      case "manual": return "Manual";
+      default: return source || "Unknown";
     }
   };
 
@@ -208,6 +230,20 @@ export default function Prospects() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="w-full md:w-64">
+              <Select value={selectedSource} onValueChange={setSelectedSource}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filter by source" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sources</SelectItem>
+                  <SelectItem value="scraped">Scraped Leads</SelectItem>
+                  <SelectItem value="acuity">Acuity Appointments</SelectItem>
+                  <SelectItem value="squarespace">Squarespace Forms</SelectItem>
+                  <SelectItem value="manual">Manually Added</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
         </div>
 
@@ -284,9 +320,14 @@ export default function Prospects() {
                       {businessTypeInfo[business.businessType as keyof typeof businessTypeInfo]?.name || business.businessType}
                     </p>
                   </div>
-                  <Badge className={getStageColor(business.stage)}>
-                    {business.stage}
-                  </Badge>
+                  <div className="flex flex-col gap-1 items-end">
+                    <Badge className={getStageColor(business.stage)}>
+                      {business.stage}
+                    </Badge>
+                    <Badge className={getSourceColor(business.source || 'manual')} variant="outline">
+                      {getSourceLabel(business.source || 'manual')}
+                    </Badge>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="space-y-3">

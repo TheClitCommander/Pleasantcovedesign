@@ -1,33 +1,36 @@
 import express, { type Request, Response, NextFunction, Express } from "express";
-import cors from "cors";
-import type { Storage } from "./storage";
+import { storage } from "./storage";
 import { insertBusinessSchema, insertCampaignSchema, type Business, PIPELINE_STAGES } from "@shared/schema";
 import { z } from "zod";
-import { createBotIntegration } from "./bot-integration";
-import { launchBulkOutreach, launchOutreachForLead } from "./outreach-module";
+import { botIntegration } from "./bot-integration";
+import { launchBulkOutreach, launchOutreachForLead } from "./outreach";
 import type { Server } from 'http';
 import { db } from "./db";
 import * as schema from "@shared/schema";
 import { eq, desc, ne, and, isNull, or, asc } from "drizzle-orm";
 import moment from "moment";
+import { createServer } from "http";
 
 // Admin authentication middleware
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "pleasantcove2024admin";
 
 // List of public API routes that don't require authentication
 const PUBLIC_API_ROUTES = [
-  "/api/progress/public",
-  "/api/scheduling/booking",
-  "/api/scheduling/slots",
-  "/api/availability",
-  "/api/blocked-dates",
-  "/api/new-lead", // Webhook for Squarespace
+  "/progress/public",
+  "/scheduling/booking",
+  "/scheduling/slots",
+  "/availability",
+  "/blocked-dates",
+  "/new-lead", // Webhook for Squarespace
+  "/appointment-webhook", // Webhook for Acuity
 ];
 
 // Middleware to check admin auth
 const requireAdmin = (req: Request, res: Response, next: NextFunction) => {
   // Check if this is a public route
   const isPublicRoute = PUBLIC_API_ROUTES.some(route => req.path.startsWith(route));
+  
+  console.log(`[AUTH] Checking path: ${req.path}, isPublicRoute: ${isPublicRoute}`);
   
   if (isPublicRoute) {
     return next();
@@ -343,7 +346,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         state: "To be enriched",
         businessType: service_type || "unknown",
         stage: "scraped" as const,
-        notes: `Source: Squarespace Form\nMessage: ${message || "No message"}\nSubmission ID: ${req.body.submissionId || "N/A"}\nAll Fields: ${JSON.stringify(leadData, null, 2)}`,
+        source: "squarespace",  // Set source for Squarespace form submissions
+        notes: `Message: ${message || "No message"}\nSubmission ID: ${req.body.submissionId || "N/A"}\nAll Fields: ${JSON.stringify(leadData, null, 2)}`,
         website: website || "",
       };
 
@@ -1469,6 +1473,200 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching webhook debug data:", error);
       res.status(500).json({ error: "Failed to fetch webhook debug data" });
+    }
+  });
+
+  // Acuity Scheduling Webhook Endpoint
+  app.post("/api/appointment-webhook", async (req, res) => {
+    try {
+      // Log ALL incoming data for debugging
+      console.log("=== ACUITY WEBHOOK RECEIVED ===");
+      console.log("Headers:", req.headers);
+      console.log("Body:", JSON.stringify(req.body, null, 2));
+      console.log("================================");
+
+      // Extract fields from the payload
+      const { 
+        firstName, 
+        lastName, 
+        email, 
+        phone, 
+        appointmentType, 
+        appointmentTime,
+        datetime,  // This could be the combined datetime field
+        timezone, 
+        notes, 
+        appointmentID, 
+        calendarID,
+        // Additional fields that might be sent
+        action,
+        type,
+        calendar,
+        forms,
+        ...otherFields
+      } = req.body;
+
+      // Use datetime if available, otherwise use appointmentTime
+      const appointmentDateTime = datetime || appointmentTime;
+      
+      // Build client name
+      const clientName = `${firstName || ''} ${lastName || ''}`.trim() || "Unknown Client";
+      
+      // Log extracted fields
+      console.log("Extracted appointment data:", {
+        clientName,
+        email,
+        phone,
+        appointmentType,
+        appointmentDateTime,
+        timezone,
+        appointmentID,
+        calendarID
+      });
+
+      // Determine the action (if not explicitly provided, assume scheduled)
+      const webhookAction = action || "scheduled";
+
+      // Look up or create business/client record
+      let business;
+      let businessId;
+      
+      // First try to find by email
+      if (email) {
+        const existingBusinesses = await db.select()
+          .from(schema.businesses)
+          .where(eq(schema.businesses.email, email))
+          .limit(1);
+        
+        if (existingBusinesses.length > 0) {
+          business = existingBusinesses[0];
+          businessId = business.id;
+        }
+      }
+      
+      // If not found by email and phone exists, try by phone
+      if (!business && phone) {
+        // Normalize phone number for better matching (remove non-digits)
+        const normalizedPhone = phone.replace(/\D/g, '');
+        const existingBusinesses = await db.select()
+          .from(schema.businesses)
+          .all();
+        
+        // Check for phone match (normalized)
+        business = existingBusinesses.find(b => 
+          b.phone && b.phone.replace(/\D/g, '') === normalizedPhone
+        );
+        
+        if (business) {
+          businessId = business.id;
+        }
+      }
+      
+      // If still not found and we have a name, try fuzzy name matching
+      if (!business && clientName && clientName !== "Unknown Client") {
+        const existingBusinesses = await db.select()
+          .from(schema.businesses)
+          .all();
+        
+        // Simple name matching - check if names are very similar
+        business = existingBusinesses.find(b => {
+          const existingName = b.name.toLowerCase().trim();
+          const incomingName = clientName.toLowerCase().trim();
+          
+          // Check for exact match or very similar names
+          return existingName === incomingName || 
+                 existingName.includes(incomingName) || 
+                 incomingName.includes(existingName);
+        });
+        
+        if (business) {
+          businessId = business.id;
+        }
+      }
+
+      // If still not found, create new business
+      if (!business) {
+        const newBusiness = await storage.createBusiness({
+          name: clientName,
+          email: email || "",
+          phone: phone || "No phone provided",
+          address: "To be collected",
+          city: "To be collected",
+          state: "ME",
+          businessType: "unknown",
+          stage: "scheduled" as const,
+          source: "acuity",  // Set source for new appointments
+          notes: `Appointment Type: ${appointmentType || 'Unknown'}\nFirst Contact: Acuity Scheduling`,
+          website: "",
+        });
+        businessId = newBusiness.id;
+        business = newBusiness;
+        
+        console.log(`✨ Created new business from Acuity: ${clientName} (ID: ${businessId})`);
+      } else {
+        // Update existing business
+        const updateData: any = {
+          stage: business.stage === 'scraped' ? 'scheduled' : business.stage, // Only update stage if it's still 'scraped'
+          scheduledTime: appointmentDateTime,
+          appointmentStatus: 'confirmed',
+        };
+        
+        // Only update source if it's currently 'manual' or empty
+        if (!business.source || business.source === 'manual') {
+          updateData.source = 'acuity';
+        }
+        
+        await storage.updateBusiness(businessId!, updateData);
+        
+        console.log(`📝 Updated existing business: ${clientName} (ID: ${businessId})`);
+      }
+
+      // Create appointment record with all parsed fields
+      if (appointmentDateTime) {
+        try {
+          const [appointment] = await db.insert(schema.appointments)
+            .values({
+              businessId: businessId!,
+              datetime: appointmentDateTime,
+              notes: JSON.stringify({
+                source: "acuity",
+                appointmentType,
+                appointmentID,
+                calendarID,
+                timezone,
+                clientNotes: notes,
+                rawPayload: req.body  // Store entire raw payload for debugging
+              }),
+              isAutoScheduled: true,
+              status: 'confirmed'
+            })
+            .returning();
+
+          console.log(`📅 Created appointment record: ${appointment.id}`);
+
+          // Update business to scheduled stage
+          await storage.updateBusiness(businessId!, {
+            stage: 'scheduled',
+            scheduledTime: appointmentDateTime
+          });
+        } catch (error) {
+          console.error("Error creating appointment record:", error);
+        }
+      }
+
+      // Log activity
+      await storage.createActivity({
+        type: "appointment_created",
+        description: `Appointment ${webhookAction} via Acuity${appointmentType ? ` (${appointmentType})` : ''}${appointmentDateTime ? ` for ${moment(appointmentDateTime).format('MMM D, YYYY at h:mm A')}` : ''}`,
+        businessId: businessId!,
+      });
+
+      // Return success response
+      res.status(200).json({ received: true });
+
+    } catch (error) {
+      console.error("Failed to process Acuity webhook:", error);
+      res.status(500).json({ error: "Failed to process appointment webhook" });
     }
   });
 

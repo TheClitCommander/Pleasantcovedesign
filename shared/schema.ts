@@ -18,6 +18,7 @@ export const businesses = sqliteTable("businesses", {
   score: integer("score").default(0),
   priority: text("priority").default("medium"),
   tags: text("tags"),
+  source: text("source").default("manual"), // 'scraped' | 'acuity' | 'squarespace' | 'manual'
   lastContactDate: text("last_contact_date"),
   scheduledTime: text("scheduled_time"),
   appointmentStatus: text("appointment_status").default("confirmed"), // 'confirmed' | 'completed' | 'no-show'
