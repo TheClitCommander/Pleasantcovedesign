@@ -1,14 +1,15 @@
-import type { Express, Request, Response, NextFunction } from "express";
-import { createServer, type Server } from "http";
-import { storage } from "./storage";
-import { botIntegration } from "./bot-integration";
-import { insertBusinessSchema, insertCampaignSchema, PIPELINE_STAGES } from "@shared/schema";
+import express, { type Request, Response, NextFunction, Express } from "express";
+import cors from "cors";
+import type { Storage } from "./storage";
+import { insertBusinessSchema, insertCampaignSchema, type Business, PIPELINE_STAGES } from "@shared/schema";
 import { z } from "zod";
-import { launchOutreachForLead, launchBulkOutreach } from "./outreach";
-import moment from "moment";
-import { eq, desc, and, ne } from "drizzle-orm";
+import { createBotIntegration } from "./bot-integration";
+import { launchBulkOutreach, launchOutreachForLead } from "./outreach-module";
+import type { Server } from 'http';
 import { db } from "./db";
 import * as schema from "@shared/schema";
+import { eq, desc, ne, and, isNull, or, asc } from "drizzle-orm";
+import moment from "moment";
 
 // Admin authentication middleware
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "pleasantcove2024admin";
@@ -274,6 +275,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // New Lead Handler - Webhook endpoint for Squarespace forms
   app.post("/api/new-lead", async (req, res) => {
     try {
+      // Log ALL incoming data for debugging
+      console.log("=== SQUARESPACE WEBHOOK RECEIVED ===");
+      console.log("Headers:", req.headers);
+      console.log("Body:", JSON.stringify(req.body, null, 2));
+      console.log("===================================");
+      
       // Handle Squarespace webhook format
       let leadData;
       
@@ -291,29 +298,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
         leadData = req.body;
       }
       
-      const { name, email, phone, message } = leadData;
+      // Extract all possible fields from Squarespace
+      const { 
+        name, 
+        email, 
+        phone, 
+        message,
+        // Appointment-related fields (adjust field names based on your Squarespace form)
+        appointment_date,
+        appointment_time,
+        preferred_date,
+        preferred_time,
+        scheduling_date,
+        scheduling_time,
+        date,
+        time,
+        datetime,
+        // Additional fields that might be sent
+        company,
+        business_name,
+        website,
+        service_type,
+        ...otherFields // Capture any other fields
+      } = leadData;
+      
+      // Log all extracted fields
+      console.log("Extracted fields:", {
+        name, email, phone, message,
+        appointment_date, appointment_time,
+        preferred_date, preferred_time,
+        scheduling_date, scheduling_time,
+        date, time, datetime,
+        company, business_name, website, service_type,
+        otherFields: Object.keys(otherFields)
+      });
       
       // Create the business/lead entry
       const businessData = {
-        name: name || "Unknown Business",
+        name: name || business_name || company || "Unknown Business",
         phone: phone || "No phone provided",
         email: email || "",
         address: "To be enriched",
-        city: "To be enriched",
+        city: "To be enriched", 
         state: "To be enriched",
-        businessType: "unknown",
+        businessType: service_type || "unknown",
         stage: "scraped" as const,
-        notes: `Source: Squarespace Form\nMessage: ${message || "No message"}\nSubmission ID: ${req.body.submissionId || "N/A"}`,
-        website: "",
+        notes: `Source: Squarespace Form\nMessage: ${message || "No message"}\nSubmission ID: ${req.body.submissionId || "N/A"}\nAll Fields: ${JSON.stringify(leadData, null, 2)}`,
+        website: website || "",
       };
 
       const business = await storage.createBusiness(businessData);
       
+      // Check if appointment data was provided
+      const appointmentDateTime = appointment_date || preferred_date || scheduling_date || date || datetime;
+      const appointmentTimeValue = appointment_time || preferred_time || scheduling_time || time;
+      
+      if (appointmentDateTime || appointmentTimeValue) {
+        // Combine date and time if they're separate
+        let fullDateTime: string | null = null;
+        
+        if (datetime) {
+          fullDateTime = datetime;
+        } else if (appointmentDateTime && appointmentTimeValue) {
+          fullDateTime = `${appointmentDateTime} ${appointmentTimeValue}`;
+        } else if (appointmentDateTime) {
+          fullDateTime = appointmentDateTime;
+        }
+        
+        if (fullDateTime) {
+          try {
+            // Parse and validate the datetime
+            const parsedDate = moment(fullDateTime);
+            if (parsedDate.isValid()) {
+              // Create appointment in the new appointments table
+              await db.insert(schema.appointments).values({
+                businessId: business.id!,
+                datetime: parsedDate.toISOString(),
+                notes: `Booked via Squarespace form. Original value: ${fullDateTime}`,
+                isAutoScheduled: true,
+                status: 'confirmed'
+              });
+              
+              // Update business stage to scheduled
+              await storage.updateBusiness(business.id!, {
+                stage: 'scheduled',
+                scheduledTime: parsedDate.toISOString()
+              });
+              
+              // Log activity
+              await storage.createActivity({
+                type: "appointment_created",
+                description: `Appointment auto-scheduled via Squarespace for ${parsedDate.format('MMM D, YYYY at h:mm A')}`,
+                businessId: business.id!,
+              });
+              
+              console.log(`✅ Appointment scheduled for ${name} on ${parsedDate.format('MMM D, YYYY at h:mm A')}`);
+            } else {
+              console.error(`❌ Invalid datetime format: ${fullDateTime}`);
+            }
+          } catch (error) {
+            console.error("Failed to create appointment:", error);
+          }
+        }
+      }
+      
       // Create activity log
       await storage.createActivity({
         type: "lead_received",
-        description: `New lead received from Squarespace: ${name}`,
-        businessId: business.id,
+        description: `New lead received from Squarespace: ${name}${appointmentDateTime ? ' (with appointment)' : ''}`,
+        businessId: business.id!,
       });
 
       // Trigger automatic enrichment in the background
