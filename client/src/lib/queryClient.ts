@@ -1,5 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import { auth } from "./auth";
+import { getAuthHeader } from "./auth";
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -7,7 +7,7 @@ export const queryClient = new QueryClient({
       queryFn: async ({ queryKey }) => {
         const res = await fetch(queryKey[0] as string, {
           headers: {
-            ...auth.getAuthHeader(),
+            ...getAuthHeader(),
           },
         });
         if (!res.ok) {
@@ -28,7 +28,7 @@ export const apiRequest = async (
     method,
     headers: {
       "Content-Type": "application/json",
-      ...auth.getAuthHeader(),
+      ...getAuthHeader(),
     },
     body: body ? JSON.stringify(body) : undefined,
   });

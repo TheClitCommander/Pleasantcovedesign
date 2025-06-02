@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { MapPin, Phone, Globe, MessageSquare, Calendar, Target } from "lucide-react";
+import { MapPin, Phone, Globe, MessageSquare, Calendar, Target, Plus, Upload } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import type { Business } from "@shared/schema";
@@ -161,8 +161,28 @@ export default function Prospects() {
       <div className="max-w-7xl mx-auto px-4 py-6">
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">Prospect Database</h1>
-          <p className="text-gray-600">Automated lead generation across Maine's local business sectors</p>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900 mb-2">Prospect Database</h1>
+              <p className="text-gray-600">Automated lead generation across Maine's local business sectors</p>
+            </div>
+            <div className="flex gap-2">
+              <Button 
+                className="bg-primary hover:bg-blue-700 text-white"
+                onClick={() => navigate('/prospects/new')}
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add Business
+              </Button>
+              <Button 
+                variant="outline"
+                onClick={() => navigate('/prospects?import=true')}
+              >
+                <Upload className="w-4 h-4 mr-2" />
+                Import CSV
+              </Button>
+            </div>
+          </div>
           
           <div className="flex flex-col md:flex-row gap-4 mt-6">
             <div className="flex-1">

@@ -152,7 +152,7 @@ export default function Dashboard() {
               <a href="/scheduling" className="text-gray-600 hover:text-gray-900">Scheduling</a>
               <a href="/clients" className="text-gray-600 hover:text-gray-900">Clients</a>
               <a href="/templates" className="text-gray-600 hover:text-gray-900">Templates</a>
-              <a href="#" className="text-gray-600 hover:text-gray-900">Analytics</a>
+              <a href="/analytics" className="text-gray-600 hover:text-gray-900">Analytics</a>
             </div>
           </div>
           <div className="flex items-center space-x-4">
@@ -258,7 +258,10 @@ export default function Dashboard() {
                 <DropdownMenuSeparator />
                 <DropdownMenuItem className="text-red-600" onClick={() => {
                   if (confirm("Are you sure you want to sign out?")) {
-                    window.location.href = "/";
+                    // Clear auth token from localStorage
+                    localStorage.removeItem('authToken');
+                    // Redirect to login page
+                    window.location.href = "/login";
                   }
                 }}>
                   <LogOut className="w-4 h-4 mr-2" />
@@ -378,7 +381,10 @@ export default function Dashboard() {
                 {campaigns?.filter(c => c.status === 'active').map((campaign) => (
                   <CampaignCard key={campaign.id} campaign={campaign} />
                 ))}
-                <Button className="w-full bg-primary hover:bg-blue-700 text-white">
+                <Button 
+                  className="w-full bg-primary hover:bg-blue-700 text-white"
+                  onClick={() => setLocation('/campaigns')}
+                >
                   <Plus className="w-4 h-4 mr-2" />
                   New Campaign
                 </Button>
@@ -448,7 +454,11 @@ export default function Dashboard() {
                   <CardTitle className="text-xl font-semibold text-gray-900">Target Business Types</CardTitle>
                   <p className="text-gray-600 mt-2">High-conversion local businesses perfect for website automation</p>
                 </div>
-                <Button variant="link" className="text-primary hover:text-blue-700">
+                <Button 
+                  variant="link" 
+                  className="text-primary hover:text-blue-700"
+                  onClick={() => setLocation('/prospects')}
+                >
                   View All <ArrowRight className="w-4 h-4 ml-1" />
                 </Button>
               </div>
@@ -529,7 +539,11 @@ export default function Dashboard() {
                   </div>
                 ))}
                 
-                <Button variant="secondary" className="w-full">
+                <Button 
+                  variant="secondary" 
+                  className="w-full"
+                  onClick={() => setLocation('/templates')}
+                >
                   View All Templates <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>

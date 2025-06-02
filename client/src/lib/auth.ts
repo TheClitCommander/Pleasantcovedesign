@@ -18,4 +18,9 @@ export function setAuthToken(token: string): void {
 export function clearAuthToken(): void {
   // In a real app, this would clear from localStorage
   console.log("Auth token cleared");
+}
+
+export function getAuthHeader(): { Authorization?: string } {
+  const token = getAuthToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
 } 

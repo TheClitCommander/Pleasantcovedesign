@@ -17,8 +17,8 @@ export default function Clients() {
     queryFn: api.getBusinesses,
   });
 
-  // Filter for businesses with stage 'client' or 'closed'
-  const clients = businesses.filter(b => b.stage === 'client' || b.stage === 'closed');
+  // Filter for businesses with stage 'sold' or 'delivered' (actual clients)
+  const clients = businesses.filter(b => b.stage === 'sold' || b.stage === 'delivered');
 
   // Fetch recent activities to show last interaction
   const { data: activities = [] } = useQuery({
@@ -38,8 +38,8 @@ export default function Clients() {
   // Helper to determine client status badge
   const getStatusBadge = (client: Business) => {
     // You can expand this logic based on your needs
-    if (client.stage === 'closed') {
-      return <Badge variant="secondary">Closed</Badge>;
+    if (client.stage === 'delivered') {
+      return <Badge className="bg-green-100 text-green-700">Delivered</Badge>;
     }
     
     // Check if they have a recent appointment
@@ -47,11 +47,11 @@ export default function Clients() {
       moment(client.scheduledTime).isAfter(moment());
     
     if (hasRecentAppointment) {
-      return <Badge className="bg-green-100 text-green-700">Active</Badge>;
+      return <Badge className="bg-blue-100 text-blue-700">Active</Badge>;
     }
     
-    // Default status
-    return <Badge className="bg-blue-100 text-blue-700">Client</Badge>;
+    // Default status for 'sold' stage
+    return <Badge className="bg-yellow-100 text-yellow-700">In Progress</Badge>;
   };
 
   if (isLoading) {
