@@ -1430,6 +1430,48 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Webhook Debug Endpoint - View recent webhook data
+  app.get("/api/webhook-debug", async (req, res) => {
+    try {
+      // Get the 5 most recent businesses with Squarespace source
+      const recentWebhooks = await db.select()
+        .from(schema.businesses)
+        .where(eq(schema.businesses.notes, 'Source: Squarespace Form'))
+        .orderBy(desc(schema.businesses.createdAt))
+        .limit(5);
+      
+      // Get recent activities related to Squarespace
+      const recentActivities = await db.select()
+        .from(schema.activities)
+        .where(or(
+          eq(schema.activities.type, 'lead_received'),
+          eq(schema.activities.type, 'appointment_created')
+        ))
+        .orderBy(desc(schema.activities.createdAt))
+        .limit(10);
+      
+      res.json({
+        message: "Recent Squarespace webhook data",
+        recentLeads: recentWebhooks.map(b => ({
+          id: b.id,
+          name: b.name,
+          email: b.email,
+          phone: b.phone,
+          createdAt: b.createdAt,
+          stage: b.stage,
+          scheduledTime: b.scheduledTime,
+          notes: b.notes
+        })),
+        recentActivities: recentActivities,
+        webhookUrl: `${req.protocol}://${req.get('host')}/api/new-lead`,
+        instructions: "Configure your Squarespace form to send webhooks to the URL above"
+      });
+    } catch (error) {
+      console.error("Error fetching webhook debug data:", error);
+      res.status(500).json({ error: "Failed to fetch webhook debug data" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -72,25 +72,22 @@ export class BotIntegration {
         '--business-type', business.businessType || 'general'
       ]);
 
-      // Update business with enriched data
+      // Calculate score and generate tags
+      const score = enrichmentData.score || this.calculateLeadScore(enrichmentData);
+      const priority = score >= 80 ? "high" : score >= 60 ? "medium" : "low";
+      const tags = enrichmentData.tags || this.generateTags(enrichmentData);
+
+      // Combine all updates into a single call
       await storage.updateBusiness(businessId, {
         address: enrichmentData.address || business.address,
         city: enrichmentData.city || business.city,
         state: enrichmentData.state || business.state,
         website: enrichmentData.website || business.website,
         businessType: enrichmentData.businessType || business.businessType,
-        notes: `${business.notes}\n\nEnrichment Data:\n${JSON.stringify(enrichmentData, null, 2)}`,
-      });
-
-      // Update score based on enrichment
-      const score = enrichmentData.score || this.calculateLeadScore(enrichmentData);
-      const priority = score >= 80 ? "high" : score >= 60 ? "medium" : "low";
-      const tags = enrichmentData.tags || this.generateTags(enrichmentData);
-
-      await storage.updateBusiness(businessId, {
+        notes: `${business.notes}\n\nEnrichment Data:\n${JSON.stringify(enrichmentData, null, 2)}`.substring(0, 1000), // Limit notes length
         score,
         priority,
-        tags,
+        tags: JSON.stringify(tags), // Convert tags array to JSON string
       });
 
       // Log activity
@@ -138,7 +135,7 @@ export class BotIntegration {
       for (const business of validBusinesses) {
         await storage.updateBusiness(business.id, {
           stage: "contacted",
-          lastContactDate: new Date(),
+          lastContactDate: new Date().toISOString(),
         });
         
         await storage.createActivity({
