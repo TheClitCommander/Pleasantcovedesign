@@ -347,6 +347,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         businessType: service_type || "unknown",
         stage: "scraped" as const,
         source: "squarespace",  // Set source for Squarespace form submissions
+        tags: JSON.stringify(["follow-up"]),  // Auto-tag Squarespace leads
         notes: `Message: ${message || "No message"}\nSubmission ID: ${req.body.submissionId || "N/A"}\nAll Fields: ${JSON.stringify(leadData, null, 2)}`,
         website: website || "",
       };
@@ -1596,6 +1597,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           businessType: "unknown",
           stage: "scheduled" as const,
           source: "acuity",  // Set source for new appointments
+          tags: JSON.stringify(["hot-lead"]),  // Auto-tag Acuity leads as hot
           notes: `Appointment Type: ${appointmentType || 'Unknown'}\nFirst Contact: Acuity Scheduling`,
           website: "",
         });
@@ -1614,6 +1616,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Only update source if it's currently 'manual' or empty
         if (!business.source || business.source === 'manual') {
           updateData.source = 'acuity';
+        }
+        
+        // Add hot-lead tag if not already present
+        try {
+          const existingTags = business.tags ? JSON.parse(business.tags) : [];
+          if (!existingTags.includes('hot-lead')) {
+            existingTags.push('hot-lead');
+            updateData.tags = JSON.stringify(existingTags);
+          }
+        } catch (e) {
+          // If tags parsing fails, just set new tags
+          updateData.tags = JSON.stringify(['hot-lead']);
         }
         
         await storage.updateBusiness(businessId!, updateData);

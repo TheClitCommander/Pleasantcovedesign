@@ -88,6 +88,38 @@ export default function LeadCard({ business, isDragging, onDragStart, onDragEnd 
         {business.city}, {business.state}
       </p>
       
+      {business.source && (
+        <span className={`inline-block text-xs px-2 py-0.5 rounded-full mt-2 ${
+          business.source === 'acuity' ? 'bg-blue-100 text-blue-700' :
+          business.source === 'squarespace' ? 'bg-purple-100 text-purple-700' :
+          business.source === 'manual' ? 'bg-teal-100 text-teal-700' :
+          'bg-gray-100 text-gray-700'
+        }`}>
+          {business.source.charAt(0).toUpperCase() + business.source.slice(1)}
+        </span>
+      )}
+      
+      {business.tags && (
+        <div className="flex flex-wrap gap-1 mt-2">
+          {(() => {
+            try {
+              const tags = JSON.parse(business.tags);
+              return tags.slice(0, 3).map((tag: string, index: number) => (
+                <span 
+                  key={index}
+                  className="inline-block text-xs px-1.5 py-0.5 bg-gray-50 text-gray-600 rounded border border-gray-200"
+                  title={tag}
+                >
+                  {tag}
+                </span>
+              ));
+            } catch {
+              return null;
+            }
+          })()}
+        </div>
+      )}
+      
       {business.stage === "sold" && (
         <p className="text-xs text-green-600 font-medium mt-2">$400 + $50/mo</p>
       )}

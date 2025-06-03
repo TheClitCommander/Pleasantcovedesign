@@ -2,6 +2,7 @@ import { exec, spawn } from "child_process";
 import { promisify } from "util";
 import { storage } from "./storage";
 import type { Business } from "@shared/schema";
+import { calculateLeadScore, getLeadTemperature } from "./lead-scoring";
 
 const execAsync = promisify(exec);
 
@@ -73,9 +74,17 @@ export class BotIntegration {
       ]);
 
       // Calculate score and generate tags
-      const score = enrichmentData.score || this.calculateLeadScore(enrichmentData);
-      const priority = score >= 80 ? "high" : score >= 60 ? "medium" : "low";
-      const tags = enrichmentData.tags || this.generateTags(enrichmentData);
+      const score = calculateLeadScore({
+        ...business,
+        ...enrichmentData,
+      });
+      const temperature = getLeadTemperature(score);
+      const priority = temperature === "hot" ? "high" : temperature === "warm" ? "medium" : "low";
+      
+      // Generate tags including source-based tags
+      const baseTags = this.generateTags(enrichmentData);
+      const sourceTags = this.getSourceTags(business.source || 'scraped');
+      const allTags = [...new Set([...baseTags, ...sourceTags])]; // Remove duplicates
 
       // Combine all updates into a single call
       await storage.updateBusiness(businessId, {
@@ -87,7 +96,7 @@ export class BotIntegration {
         notes: `${business.notes}\n\nEnrichment Data:\n${JSON.stringify(enrichmentData, null, 2)}`.substring(0, 1000), // Limit notes length
         score,
         priority,
-        tags: JSON.stringify(tags), // Convert tags array to JSON string
+        tags: JSON.stringify(allTags), // Convert tags array to JSON string
       });
 
       // Log activity
@@ -204,6 +213,23 @@ export class BotIntegration {
     }
 
     return tags;
+  }
+
+  /**
+   * Get source-based tags
+   */
+  private getSourceTags(source: string): string[] {
+    switch (source) {
+      case 'acuity':
+        return ['hot-lead', 'appointment-scheduled'];
+      case 'squarespace':
+        return ['follow-up', 'form-submission'];
+      case 'manual':
+        return ['manual-entry'];
+      case 'scraped':
+      default:
+        return ['cold', 'scraped-lead'];
+    }
   }
 
   /**
